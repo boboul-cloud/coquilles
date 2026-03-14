@@ -192,6 +192,59 @@ class OrderStore: ObservableObject {
         save()
     }
 
+    /// Importe des clients depuis un fichier texte (un par ligne).
+    /// Format : "Nom;téléphone;catégorie" — téléphone et catégorie optionnels.
+    /// Séparateur accepté : ";" ou ","
+    /// Retourne le nombre de clients importés.
+    func importerClientsDepuisFichier(url: URL) -> Int {
+        guard let contenu = try? String(contentsOf: url, encoding: .utf8) else { return 0 }
+        let lignes = contenu.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        var count = 0
+        for ligne in lignes {
+            let parts: [String]
+            if ligne.contains(";") {
+                parts = ligne.components(separatedBy: ";").map { $0.trimmingCharacters(in: .whitespaces) }
+            } else if ligne.contains(",") {
+                parts = ligne.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            } else {
+                parts = [ligne]
+            }
+            let nom = parts[0]
+            let tel = parts.count > 1 ? parts[1] : ""
+            let catNom = parts.count > 2 ? parts[2] : ""
+            guard !nom.isEmpty else { continue }
+
+            // Éviter les doublons par nom
+            if orders.contains(where: { $0.nom.localizedCaseInsensitiveCompare(nom) == .orderedSame }) {
+                continue
+            }
+
+            // Résoudre ou créer la catégorie
+            var catID: UUID? = nil
+            if !catNom.isEmpty {
+                if let existing = categories.first(where: { $0.nom.localizedCaseInsensitiveCompare(catNom) == .orderedSame }) {
+                    catID = existing.id
+                } else {
+                    let nouvelle = CategorieClient(nom: catNom)
+                    categories.append(nouvelle)
+                    catID = nouvelle.id
+                }
+            }
+
+            var order = Order()
+            order.nom = nom
+            order.telephone = tel
+            order.categorieID = catID
+            orders.append(order)
+            count += 1
+        }
+        if count > 0 { save() }
+        return count
+    }
+
     func save() {
         if let data = try? JSONEncoder().encode(orders) {
             UserDefaults.standard.set(data, forKey: ordersKey)

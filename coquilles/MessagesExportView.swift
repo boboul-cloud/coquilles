@@ -30,6 +30,9 @@ struct MessagesExportView: View {
     @State private var showSauvegardeFeedback = false
     @State private var showConfirmSupprimer: String? = nil
     @State private var showWebLinkCopied = false
+    @State private var showImportClients = false
+    @State private var importClientsCount = 0
+    @State private var showImportClientsFeedback = false
 
     enum ClientSelectionType {
         case commande, arrivee, pageWeb
@@ -180,6 +183,22 @@ struct MessagesExportView: View {
                 case .failure:
                     break
                 }
+            }
+            .fileImporter(isPresented: $showImportClients, allowedContentTypes: [.plainText, .commaSeparatedText]) { result in
+                switch result {
+                case .success(let url):
+                    let accessing = url.startAccessingSecurityScopedResource()
+                    defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+                    importClientsCount = store.importerClientsDepuisFichier(url: url)
+                    if importClientsCount > 0 {
+                        showImportClientsFeedback = true
+                    }
+                case .failure:
+                    break
+                }
+            }
+            .alert("\(importClientsCount) client\(importClientsCount > 1 ? "s" : "") importé\(importClientsCount > 1 ? "s" : "") ✓", isPresented: $showImportClientsFeedback) {
+                Button("OK") {}
             }
         }
     }
@@ -696,7 +715,23 @@ struct MessagesExportView: View {
                 .foregroundStyle(.coral)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-        }
+            Button {
+                showImportClients = true
+            } label: {
+                HStack {
+                    Image(systemName: "person.crop.circle.badge.plus")
+                    Text("Importer une liste de clients")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.ocean.opacity(0.1))
+                .foregroundStyle(.ocean)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }        }
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
