@@ -106,13 +106,6 @@ input:focus{outline:none;border-color:var(--ocean)}
     return atob(b);
   }
 
-  // Décompression zlib via DecompressionStream
-  function inflateBytes(bytes) {
-    return new Response(
-      new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'))
-    ).text();
-  }
-
   // Parse le format compact v1 : "1|titre|unite|nom~prix~t1,t2~c1,c2|..."
   function parseCompact(str) {
     var seg = str.split('|');
@@ -133,48 +126,21 @@ input:focus{outline:none;border-color:var(--ocean)}
       '<div class="card error"><h2>&#x26A0;&#xFE0F; Erreur</h2><p>' + msg + '</p></div>';
   }
 
-  // Déterminer si compressé (préfixe 'z') ou legacy JSON
-  var compressed = hash.charAt(0) === 'z';
-  if (compressed) {
-    try {
-      var raw = b64urlDecode(hash.substring(1));
-      var bytes = new Uint8Array(raw.length);
-      for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      inflateBytes(bytes).then(function(text) {
-        var config = parseCompact(text);
-        if (!config) { showError('Format invalide.'); return; }
-        boot(config);
-      }).catch(function() { showError('Impossible de d&eacute;compresser. Demandez un nouveau lien.'); });
-      return; // async: boot() appellera render()
-    } catch(e) {
-      showError('Lien corrompu. Demandez un nouveau lien.');
-      return;
-    }
-  }
-
-  // Legacy: JSON en base64url (ancien format)
+  // Décoder le hash : format compact base64url ou legacy JSON
   var config;
   try {
-    var decoded = b64urlDecode(hash);
-    var json = decodeURIComponent(escape(decoded));
-    var parsed = JSON.parse(json);
-    // Peut aussi être format compact non-compressé
-    if (typeof parsed === 'string' && parsed.startsWith('1|')) {
-      config = parseCompact(parsed);
-    } else {
-      config = parsed;
+    var decoded = decodeURIComponent(escape(b64urlDecode(hash)));
+    // Essayer format compact v1
+    config = parseCompact(decoded);
+    // Sinon legacy JSON
+    if (!config) {
+      config = JSON.parse(decoded);
     }
   } catch(e) {
-    // Essayer format compact non-compressé
-    try {
-      var text = decodeURIComponent(escape(b64urlDecode(hash)));
-      config = parseCompact(text);
-    } catch(e2) {
-      showError('Impossible de lire les donn&eacute;es. Demandez un nouveau lien.');
-      return;
-    }
+    showError('Impossible de lire les donn&eacute;es. Demandez un nouveau lien au vendeur.');
+    return;
   }
-  if (!config) {
+  if (!config || !config.v) {
     showError('Donn&eacute;es invalides.');
     return;
   }
