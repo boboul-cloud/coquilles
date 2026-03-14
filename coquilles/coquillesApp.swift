@@ -9,9 +9,25 @@ import SwiftUI
 
 @main
 struct coquillesApp: App {
+    @StateObject private var store = OrderStore()
+    @State private var showImportConfirm = false
+    @State private var importedName = ""
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(store: store)
+                .tint(.ocean)
+                .onOpenURL { url in
+                    if store.importerCommandeDepuisURL(url) {
+                        importedName = store.orders.last?.nom ?? "Client"
+                        showImportConfirm = true
+                    }
+                }
+                .alert("Commande importée ✓", isPresented: $showImportConfirm) {
+                    Button("OK") {}
+                } message: {
+                    Text("La commande de « \(importedName) » a été ajoutée.")
+                }
         }
     }
 }
