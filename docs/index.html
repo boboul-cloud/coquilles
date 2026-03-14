@@ -64,8 +64,9 @@ input:focus{outline:none;border-color:var(--ocean)}
       <input type="text" id="nom" placeholder="Votre nom" autocomplete="name">
     </div>
     <div class="field-group">
-      <label for="tel">T&eacute;l&eacute;phone</label>
-      <input type="tel" id="tel" placeholder="06 12 34 56 78" autocomplete="tel">
+      <label for="tel">T&eacute;l&eacute;phone <span style="color:#e74c3c">*</span></label>
+      <input type="tel" id="tel" placeholder="06 12 34 56 78" autocomplete="tel" required>
+      <p style="font-size:.75em;color:#888;margin:4px 0 0">Indispensable pour vous identifier aupr&egrave;s du vendeur.</p>
     </div>
   </div>
   <div class="card">
@@ -107,11 +108,18 @@ input:focus{outline:none;border-color:var(--ocean)}
   }
 
   // Parse le format compact v1 : "1|titre|unite|nom~prix~t1,t2~c1,c2|..."
+  // ou v2 : "2|titre|unite|telVendeur|nom~prix~t1,t2~c1,c2|..."
   function parseCompact(str) {
     var seg = str.split('|');
-    if (seg[0] !== '1') return null;
-    var cfg = { t: seg[1], u: seg[2], v: [] };
-    for (var i = 3; i < seg.length; i++) {
+    var ver = parseInt(seg[0]);
+    if (ver !== 1 && ver !== 2) return null;
+    var cfg = { t: seg[1], u: seg[2], v: [], p: '' };
+    var startIdx = 3;
+    if (ver === 2) {
+      cfg.p = seg[3] || '';
+      startIdx = 4;
+    }
+    for (var i = startIdx; i < seg.length; i++) {
       var f = seg[i].split('~');
       var v = { n: f[0], x: parseFloat(f[1]) || 0 };
       if (f[2]) v.ta = f[2].split(',');
@@ -229,7 +237,8 @@ input:focus{outline:none;border-color:var(--ocean)}
       rc.classList.add("hidden");
     }
     var nom = document.getElementById("nom").value.trim();
-    document.getElementById("submitBtn").disabled = !(any && nom);
+    var tel = document.getElementById("tel").value.trim();
+    document.getElementById("submitBtn").disabled = !(any && nom && tel);
   }
 
   document.getElementById("nom").addEventListener("input", update);

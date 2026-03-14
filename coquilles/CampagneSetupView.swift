@@ -32,8 +32,22 @@ struct CampagneSetupView: View {
                         Text("Kilogrammes (kg)").tag(UniteQuantite.kg)
                         Text("Unités").tag(UniteQuantite.unite)
                     }
+
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.ocean.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "phone.fill")
+                                .foregroundStyle(.ocean)
+                        }
+                        TextField("Votre n° de téléphone", text: $store.telephoneVendeur)
+                            .keyboardType(.phonePad)
+                    }
                 } header: {
                     StyledSectionHeader(title: "Campagne", icon: "megaphone.fill")
+                } footer: {
+                    Text("Votre numéro sera pré-rempli comme destinataire du SMS envoyé par vos clients depuis la page web.")
                 }
 
                 // MARK: - Variantes

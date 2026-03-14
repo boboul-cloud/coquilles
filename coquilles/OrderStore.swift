@@ -26,12 +26,14 @@ class OrderStore: ObservableObject {
     @Published var variantes: [Variante] = []
     @Published var categories: [CategorieClient] = []
     @Published var campagnesSauvegardees: [String] = []
+    @Published var telephoneVendeur: String = ""
 
     private let ordersKey = "savedOrders"
     private let titreKey = "campagneTitre"
     private let uniteKey = "campagneUnite"
     private let variantesKey = "campagneVariantes"
     private let categoriesKey = "campagneCategories"
+    private let telVendeurKey = "campagneTelVendeur"
 
     init() {
         load()
@@ -201,6 +203,7 @@ class OrderStore: ObservableObject {
         if let data = try? JSONEncoder().encode(categories) {
             UserDefaults.standard.set(data, forKey: categoriesKey)
         }
+        UserDefaults.standard.set(telephoneVendeur, forKey: telVendeurKey)
     }
 
     // MARK: - Export récapitulatif PDF
@@ -703,6 +706,7 @@ class OrderStore: ObservableObject {
            let decoded = try? JSONDecoder().decode([CategorieClient].self, from: data) {
             categories = decoded
         }
+        telephoneVendeur = UserDefaults.standard.string(forKey: telVendeurKey) ?? ""
         migrateIfNeeded()
         rafraichirListeCampagnes()
     }
@@ -758,13 +762,13 @@ class OrderStore: ObservableObject {
     private let pagesBaseURL = "https://boboul-cloud.github.io/coquilles/"
 
     /// Génère un lien web vers la page de commande hébergée sur GitHub Pages
-    /// Format compact : "1|titre|unite|nom~prix~t1,t2~c1,c2|..." en base64url
+    /// Format compact : "2|titre|unite|telVendeur|nom~prix~t1,t2~c1,c2|..." en base64url
     func genererLienWebCommande() -> URL? {
         let parts = variantes.filter { !$0.nom.isEmpty }.map { v in
             "\(v.nom)~\(v.prix)~\(v.tailles.joined(separator: ","))~\(v.couleurs.joined(separator: ","))"
         }
         guard !parts.isEmpty else { return nil }
-        let payload = "1|\(titreCampagne)|\(uniteQuantite.rawValue)|\(parts.joined(separator: "|"))"
+        let payload = "2|\(titreCampagne)|\(uniteQuantite.rawValue)|\(telephoneVendeur)|\(parts.joined(separator: "|"))"
         guard let raw = payload.data(using: .utf8) else { return nil }
 
         let encoded = raw.base64EncodedString()
@@ -779,6 +783,16 @@ class OrderStore: ObservableObject {
          .replacingOccurrences(of: "\"", with: "\\\"")
          .replacingOccurrences(of: "'", with: "\\'")
          .replacingOccurrences(of: "\n", with: "\\n")
+    }
+
+    /// Normalise un numéro de téléphone pour la comparaison
+    private func normaliserTelephone(_ tel: String) -> String {
+        let digits = tel.filter(\.isNumber)
+        // +33612345678 → 0612345678
+        if digits.hasPrefix("33") && digits.count == 11 {
+            return "0" + digits.dropFirst(2)
+        }
+        return digits
     }
 
     /// Importe une commande depuis les données encodées dans un deep link. Retourne le nom du client importé, ou nil en cas d'échec.
@@ -807,7 +821,8 @@ class OrderStore: ObservableObject {
 
         // Vérifier si un client avec ce téléphone existe déjà
         let tel = commande.p ?? ""
-        if let index = orders.firstIndex(where: { !tel.isEmpty && $0.telephone == tel }) {
+        let telNorm = normaliserTelephone(tel)
+        if let index = orders.firstIndex(where: { !telNorm.isEmpty && normaliserTelephone($0.telephone) == telNorm }) {
             // Ajouter les lignes à la commande existante
             for l in commande.l {
                 let ligne = LigneCommande(
