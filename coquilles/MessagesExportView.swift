@@ -32,19 +32,20 @@ struct MessagesExportView: View {
     @State private var showWebLinkCopied = false
 
     enum ClientSelectionType {
-        case commande, arrivee
+        case commande, arrivee, pageWeb
 
         var titre: String {
             switch self {
             case .commande: return "Passer commande"
             case .arrivee: return "Commande arrivée"
+            case .pageWeb: return "Envoyer le lien"
             }
         }
     }
 
     private func clientsForType(_ type: ClientSelectionType) -> [Order] {
         switch type {
-        case .commande:
+        case .commande, .pageWeb:
             return store.orders.filter { !$0.telephone.isEmpty }
         case .arrivee:
             return store.orders.filter { !$0.telephone.isEmpty && !$0.lignes.isEmpty }
@@ -107,11 +108,18 @@ struct MessagesExportView: View {
                 CampagneSetupView(store: store)
             }
             .sheet(isPresented: $showClientSelection) {
+                let message: String = {
+                    if clientSelectionType == .pageWeb,
+                       let url = store.genererLienWebCommande() {
+                        return url.absoluteString
+                    }
+                    return messageTexte
+                }()
                 ClientSelectionView(
                     store: store,
                     type: clientSelectionType,
                     clients: clientsForType(clientSelectionType),
-                    messageTexte: messageTexte
+                    messageTexte: message
                 )
             }
             .sheet(item: $shareItem) { item in
@@ -368,6 +376,31 @@ struct MessagesExportView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    clientSelectionType = .pageWeb
+                    showClientSelection = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "message.fill")
+                        Text("Envoyer par SMS")
+                            .fontWeight(.medium)
+                        Spacer()
+                        Text("\(store.tousLesNumeros.count)")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(.white.opacity(0.3))
+                            .clipShape(Capsule())
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.ocean.gradient)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .disabled(store.tousLesNumeros.isEmpty || !MessageComposeView.canSendText)
             } else {
                 Text("Ajoutez des variantes dans la configuration pour générer le lien.")
                     .font(.caption)
