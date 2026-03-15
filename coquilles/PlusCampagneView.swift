@@ -1,6 +1,6 @@
 //
 //  PlusCampagneView.swift
-//  coquilles
+//  Groop
 //
 //  Sauvegarde, restauration et partage de campagnes.
 //
@@ -10,6 +10,7 @@ import UniformTypeIdentifiers
 
 struct PlusCampagneView: View {
     @ObservedObject var store: OrderStore
+    @ObservedObject var storeManager: StoreManager
 
     @State private var shareItem: IdentifiableURL? = nil
     @State private var showSauvegardeNom = false
@@ -17,10 +18,15 @@ struct PlusCampagneView: View {
     @State private var showChargerCampagne = false
     @State private var showImportJSON = false
     @State private var showSauvegardeFeedback = false
+    @State private var showNouvelleCampagneRappel = false
+    @State private var showNouvelleCampagneOptions = false
+    @State private var showCampagneSetup = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                configSection
+                nouvelleCampagneSection
                 sauvegardeSection
             }
             .padding()
@@ -28,6 +34,9 @@ struct PlusCampagneView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Campagne")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showCampagneSetup) {
+            CampagneSetupView(store: store)
+        }
         .sheet(item: $shareItem) { item in
             ShareSheet(activityItems: [item.url])
         }
@@ -64,6 +73,105 @@ struct PlusCampagneView: View {
                 break
             }
         }
+        .alert("Nouvelle campagne", isPresented: $showNouvelleCampagneRappel) {
+            Button("Sauvegarder et continuer") {
+                _ = store.sauvegarderCampagne(nom: store.titreCampagne)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    showNouvelleCampagneOptions = true
+                }
+            }
+            Button("Continuer sans sauvegarder", role: .destructive) {
+                showNouvelleCampagneOptions = true
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("La campagne « \(store.titreCampagne) » n'a peut-être pas été sauvegardée. Voulez-vous la sauvegarder avant de tout effacer ?")
+        }
+        .confirmationDialog("Que faire des clients ?", isPresented: $showNouvelleCampagneOptions, titleVisibility: .visible) {
+            Button("Tout effacer", role: .destructive) {
+                store.nouvelleCampagne(garderClients: false)
+            }
+            Button("Garder les noms (vider commandes)") {
+                store.nouvelleCampagne(garderClients: true)
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Voulez-vous conserver la liste des clients (noms et téléphones) pour la nouvelle campagne ?")
+        }
+    }
+
+    // MARK: - Configuration
+
+    private var configSection: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "gearshape.2")
+                    .foregroundStyle(.ocean)
+                Text("Configuration")
+                    .font(.headline)
+                    .foregroundStyle(.ocean)
+                Spacer()
+            }
+
+            Button {
+                showCampagneSetup = true
+            } label: {
+                HStack {
+                    Image(systemName: "gearshape.2")
+                    Text("Configurer la campagne")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color(.systemGray6))
+                .foregroundStyle(.primary)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    // MARK: - Nouvelle campagne
+
+    private var nouvelleCampagneSection: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(.orange)
+                Text("Nouvelle campagne")
+                    .font(.headline)
+                    .foregroundStyle(.orange)
+                Spacer()
+            }
+
+            Text("Réinitialisez tout pour démarrer une nouvelle campagne. Vous pourrez choisir de conserver ou non la liste des clients.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                showNouvelleCampagneRappel = true
+            } label: {
+                HStack {
+                    Image(systemName: "arrow.counterclockwise")
+                    Text("Nouvelle campagne")
+                        .fontWeight(.medium)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.orange.gradient)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
     // MARK: - Sauvegarde
@@ -77,6 +185,11 @@ struct PlusCampagneView: View {
                     .font(.headline)
                     .foregroundStyle(.ocean)
                 Spacer()
+                if !storeManager.proUnlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Text("Sauvegardez ou restaurez l'intégralité de la campagne (commandes, réglements, variantes…) au format JSON.")
@@ -161,6 +274,8 @@ struct PlusCampagneView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
+        .disabled(!storeManager.proUnlocked)
+        .opacity(storeManager.proUnlocked ? 1 : 0.5)
     }
 }
 

@@ -1,6 +1,6 @@
 //
 //  PlusCommandeView.swift
-//  coquilles
+//  Groop
 //
 //  Page web de commande et messages groupés SMS.
 //
@@ -349,7 +349,7 @@ struct ClientSelectionView: View {
                                     .font(.title3)
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(client.nom.isEmpty ? "Sans nom" : client.nom)
+                                    Text(client.nomComplet.isEmpty ? "Sans nom" : client.nomComplet)
                                         .fontWeight(.medium)
                                         .foregroundStyle(.primary)
                                     Text(client.telephone)

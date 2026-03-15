@@ -1,6 +1,6 @@
 //
 //  Order.swift
-//  coquilles
+//  Groop
 //
 //  Created by Robert Oulhen on 11/03/2026.
 //
@@ -66,6 +66,7 @@ struct LigneCommande: Identifiable, Codable {
 struct Order: Identifiable, Codable {
     var id = UUID()
     var telephone: String = ""
+    var prenom: String = ""
     var nom: String = ""
     var categorieID: UUID? = nil
     var lignes: [LigneCommande] = []
@@ -79,6 +80,11 @@ struct Order: Identifiable, Codable {
     var livre: Bool = false
     var dateReglement: Date? = nil
     var dateReglementImpaye: Date? = nil
+
+    /// Nom complet pour affichage (prénom + nom)
+    var nomComplet: String {
+        [prenom, nom].filter { !$0.isEmpty }.joined(separator: " ")
+    }
 
     var quantiteTotale: Double {
         lignes.map(\.quantite).reduce(0, +)
@@ -127,7 +133,7 @@ struct Order: Identifiable, Codable {
     }
 
     var estValide: Bool {
-        !nom.isEmpty && !lignes.isEmpty && lignes.allSatisfy { !$0.variante.isEmpty && $0.quantite > 0 }
+        !nomComplet.isEmpty && !lignes.isEmpty && lignes.allSatisfy { !$0.variante.isEmpty && $0.quantite > 0 }
     }
 
     mutating func livrerTout() {

@@ -1,6 +1,6 @@
 //
 //  PlusExportationView.swift
-//  coquilles
+//  Groop
 //
 //  Export PDF, bons de commande et fiches de distribution.
 //
@@ -10,15 +10,20 @@ import QuickLook
 
 struct PlusExportationView: View {
     @ObservedObject var store: OrderStore
+    @ObservedObject var storeManager: StoreManager
 
     @State private var shareItem: IdentifiableURL? = nil
     @State private var previewURL: URL? = nil
     @State private var showExportFeedback = false
     @State private var showConfirmFinie = false
+    @State private var showProUpgrade = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                if !storeManager.proUnlocked {
+                    proRequiredBanner
+                }
                 finalisationSection
                 exportSection
                 bonCommandeSection
@@ -40,6 +45,37 @@ struct PlusExportationView: View {
                 }
             }
             Button("Annuler", role: .cancel) {}
+        }
+        .sheet(isPresented: $showProUpgrade) {
+            GroopProView(storeManager: storeManager)
+        }
+    }
+
+    // MARK: - Bannière Pro requise
+
+    private var proRequiredBanner: some View {
+        Button {
+            showProUpgrade = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Fonctionnalité Pro")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                    Text("Débloquez Groop Pro pour exporter vos documents.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .background(Color.orange.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
     }
 
@@ -91,6 +127,11 @@ struct PlusExportationView: View {
                     .font(.headline)
                     .foregroundStyle(.ocean)
                 Spacer()
+                if !storeManager.proUnlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Button {
@@ -131,6 +172,8 @@ struct PlusExportationView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
+        .disabled(!storeManager.proUnlocked)
+        .opacity(storeManager.proUnlocked ? 1 : 0.5)
     }
 
     // MARK: - Bon de commande
@@ -144,6 +187,11 @@ struct PlusExportationView: View {
                     .font(.headline)
                     .foregroundStyle(.ocean)
                 Spacer()
+                if !storeManager.proUnlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Text("Regroupe toutes les commandes par variante, taille et couleur")
@@ -184,6 +232,8 @@ struct PlusExportationView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
+        .disabled(!storeManager.proUnlocked)
+        .opacity(storeManager.proUnlocked ? 1 : 0.5)
     }
 
     // MARK: - Distribution
@@ -197,6 +247,11 @@ struct PlusExportationView: View {
                     .font(.headline)
                     .foregroundStyle(.ocean)
                 Spacer()
+                if !storeManager.proUnlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Text("Liste par catégorie et par client pour la distribution, avec cases à cocher")
@@ -227,6 +282,8 @@ struct PlusExportationView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
+        .disabled(!storeManager.proUnlocked)
+        .opacity(storeManager.proUnlocked ? 1 : 0.5)
     }
 }
 

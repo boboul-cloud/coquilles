@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  coquilles
+//  Groop
 //
 //  Created by Robert Oulhen on 11/03/2026.
 //
@@ -11,17 +11,18 @@ import QuickLook
 
 struct ContentView: View {
     @ObservedObject var store: OrderStore
+    @ObservedObject var storeManager: StoreManager
     @State private var selectedTab = 0
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            DashboardView(store: store)
+            DashboardView(store: store, storeManager: storeManager)
                 .tabItem {
                     Label("Tableau", systemImage: "chart.bar.fill")
                 }
                 .tag(0)
 
-            CommandesView(store: store)
+            CommandesView(store: store, storeManager: storeManager)
                 .tabItem {
                     Label("Commandes", systemImage: "list.clipboard.fill")
                 }
@@ -34,7 +35,7 @@ struct ContentView: View {
                 }
                 .tag(2)
 
-            MessagesExportView(store: store)
+            MessagesExportView(store: store, storeManager: storeManager)
                 .tabItem {
                     Label("Plus", systemImage: "ellipsis.circle.fill")
                 }
@@ -99,5 +100,5 @@ struct ShareSheet: UIViewControllerRepresentable {
 }
 
 #Preview {
-    ContentView(store: OrderStore())
+    ContentView(store: OrderStore(), storeManager: StoreManager())
 }

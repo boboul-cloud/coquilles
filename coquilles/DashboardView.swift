@@ -1,6 +1,6 @@
 //
 //  DashboardView.swift
-//  coquilles
+//  Groop
 //
 //  Tableau de bord avec cartes animées et résumé visuel.
 //
@@ -9,7 +9,9 @@ import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var store: OrderStore
+    @ObservedObject var storeManager: StoreManager
     @State private var waveOffset: CGFloat = 0
+    @State private var showProUpgrade = false
 
     var body: some View {
         NavigationStack {
@@ -59,6 +61,41 @@ struct DashboardView: View {
                                 }
                             }
                             .padding(.top, 8)
+                        }
+
+                        // MARK: - Passage Pro
+                        if !storeManager.proUnlocked {
+                            Button {
+                                showProUpgrade = true
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "star.circle.fill")
+                                        .font(.title2)
+                                        .foregroundStyle(.white)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Passer à Groop Pro")
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(.white)
+                                        Text("Clients illimités, exports PDF, sauvegardes…")
+                                            .font(.caption2)
+                                            .foregroundStyle(.white.opacity(0.85))
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.white.opacity(0.8))
+                                }
+                                .padding()
+                                .background(LinearGradient(
+                                    colors: [.orange, .yellow.opacity(0.8)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ))
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .shadow(color: .orange.opacity(0.3), radius: 8, y: 4)
+                            }
                         }
 
                         // MARK: - Cartes statistiques
@@ -183,6 +220,9 @@ struct DashboardView: View {
             }
             .background(Color(.systemGroupedBackground))
             .ignoresSafeArea(edges: .top)
+            .sheet(isPresented: $showProUpgrade) {
+                GroopProView(storeManager: storeManager)
+            }
         }
     }
 

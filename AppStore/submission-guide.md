@@ -1,10 +1,10 @@
-# Coquilles — Guide de soumission App Store
+# Groop — Guide de soumission App Store
 
 ## Checklist avant soumission
 
 ### 1. Dans Xcode
 
-- [ ] **Bundle Identifier** : vérifier qu'il correspond à celui créé dans App Store Connect (ex: `com.robertoulhen.coquilles`)
+- [ ] **Bundle Identifier** : vérifier qu'il correspond à celui créé dans App Store Connect (ex: `com.robertoulhen.groop`)
 - [ ] **Version** : 1.0
 - [ ] **Build** : 1
 - [ ] **Deployment Target** : iOS 17.0 (minimum recommandé pour les API SwiftUI utilisées)
@@ -16,7 +16,7 @@
 ### 2. Dans App Store Connect
 
 #### Informations de l'app
-- [ ] Nom : **Coquilles**
+- [ ] Nom : **Groop**
 - [ ] Sous-titre : **Commandes groupées faciles**
 - [ ] Catégorie : **Utilitaires** / **Économie et entreprise**
 - [ ] Évaluation du contenu : **4+**
@@ -26,8 +26,8 @@
 - [ ] Coller le **texte promotionnel** depuis `AppStore/metadata.md`
 - [ ] Coller les **mots-clés** depuis `AppStore/metadata.md`
 - [ ] Coller le texte **Quoi de neuf** depuis `AppStore/metadata.md`
-- [ ] URL de support : `https://boboul-cloud.github.io/coquilles/support.html`
-- [ ] URL de confidentialité : `https://boboul-cloud.github.io/coquilles/confidentialite.html`
+- [ ] URL de support : `https://boboul-cloud.github.io/groop/support.html`
+- [ ] URL de confidentialité : `https://boboul-cloud.github.io/groop/confidentialite.html`
 
 #### Captures d'écran requises
 - [ ] **iPhone 6.7"** (iPhone 15 Pro Max) : 1290 × 2796 px — minimum 3, max 10
@@ -48,7 +48,7 @@
 Coller le texte suivant :
 
 ```
-Coquilles is a local-only group order management app. All data is stored on-device (UserDefaults + local JSON files). No server, no account, no analytics.
+Groop is a local-only group order management app. All data is stored on-device (UserDefaults + local JSON files). No server, no account, no analytics.
 
 The SMS feature uses MFMessageComposeViewController (native iOS). The app does not access message results.
 
@@ -61,9 +61,9 @@ No login is required. The app works entirely offline.
 
 - [ ] Vérifier le statut dans App Store Connect (« Waiting for Review » → « In Review » → « Ready for Sale »)
 - [ ] S'assurer que les pages GitHub Pages fonctionnent :
-  - https://boboul-cloud.github.io/coquilles/confidentialite.html
-  - https://boboul-cloud.github.io/coquilles/conditions.html
-  - https://boboul-cloud.github.io/coquilles/support.html
+  - https://boboul-cloud.github.io/groop/confidentialite.html
+  - https://boboul-cloud.github.io/groop/conditions.html
+  - https://boboul-cloud.github.io/groop/support.html
 
 ---
 

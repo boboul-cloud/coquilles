@@ -247,7 +247,7 @@ input:focus{outline:none;border-color:var(--ocean)}
     });
     var data = JSON.stringify({n:nom, p:tel, l:lignes});
     var encoded = btoa(unescape(encodeURIComponent(data)));
-    var deepUrl = "coquilles://order?d=" + encodeURIComponent(encoded);
+    var deepUrl = "groop://order?d=" + encodeURIComponent(encoded);
 
     // Récap texte pour le SMS
     var recap = lignes.map(function(l){

@@ -1,6 +1,6 @@
 //
 //  PlusReglageView.swift
-//  coquilles
+//  Groop
 //
 //  Configuration, remise à zéro et import de clients.
 //
@@ -10,17 +10,19 @@ import UniformTypeIdentifiers
 
 struct PlusReglageView: View {
     @ObservedObject var store: OrderStore
+    @ObservedObject var storeManager: StoreManager
 
-    @State private var showCampagneSetup = false
     @State private var showConfirmReset = false
     @State private var showImportClients = false
     @State private var importClientsCount = 0
     @State private var showImportClientsFeedback = false
     @State private var exportClientsShareItem: IdentifiableURL? = nil
     @State private var showExportFormat = false
+    @State private var showExportCategoryPicker = false
+    @State private var pendingExportSeparer = false
 
-    private let confidentialiteURL = URL(string: "https://boboul-cloud.github.io/coquilles/confidentialite.html")!
-    private let conditionsURL = URL(string: "https://boboul-cloud.github.io/coquilles/conditions.html")!
+    private let confidentialiteURL = URL(string: "https://boboul-cloud.github.io/groop/confidentialite.html")!
+    private let conditionsURL = URL(string: "https://boboul-cloud.github.io/groop/conditions.html")!
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -42,9 +44,6 @@ struct PlusReglageView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Réglages")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showCampagneSetup) {
-            CampagneSetupView(store: store)
-        }
         .alert("Remise à zéro", isPresented: $showConfirmReset) {
             Button("Confirmer", role: .destructive) {
                 store.remiseAZero()
@@ -74,18 +73,53 @@ struct PlusReglageView: View {
         }
         .confirmationDialog("Format d'export", isPresented: $showExportFormat, titleVisibility: .visible) {
             Button("Nom ; Téléphone ; Catégorie") {
-                if let url = store.exporterClientsFichier(separerNomPrenom: false) {
-                    exportClientsShareItem = IdentifiableURL(url: url)
+                pendingExportSeparer = false
+                if store.categories.count > 1 {
+                    showExportCategoryPicker = true
+                } else {
+                    if let url = store.exporterClientsFichier(separerNomPrenom: false) {
+                        exportClientsShareItem = IdentifiableURL(url: url)
+                    }
                 }
             }
-            Button("Prénom ; Nom ; Téléphone") {
-                if let url = store.exporterClientsFichier(separerNomPrenom: true) {
-                    exportClientsShareItem = IdentifiableURL(url: url)
+            Button("Prénom ; Nom ; Téléphone (Temps de Jeu)") {
+                pendingExportSeparer = true
+                if store.categories.count > 1 {
+                    showExportCategoryPicker = true
+                } else {
+                    let catID = store.categories.first?.id
+                    if let url = store.exporterClientsFichier(separerNomPrenom: true, categorieID: catID) {
+                        exportClientsShareItem = IdentifiableURL(url: url)
+                    }
                 }
             }
             Button("Annuler", role: .cancel) {}
         } message: {
             Text("Choisissez le format selon l'application de destination.")
+        }
+        .confirmationDialog("Quelle catégorie exporter ?", isPresented: $showExportCategoryPicker, titleVisibility: .visible) {
+            Button("Toutes les catégories") {
+                if pendingExportSeparer {
+                    // Export par catégorie séparé : utiliser la première catégorie pour la démo ou tout exporter
+                    if let url = store.exporterClientsFichier(separerNomPrenom: true) {
+                        exportClientsShareItem = IdentifiableURL(url: url)
+                    }
+                } else {
+                    if let url = store.exporterClientsFichier(separerNomPrenom: false) {
+                        exportClientsShareItem = IdentifiableURL(url: url)
+                    }
+                }
+            }
+            ForEach(store.categories) { cat in
+                Button(cat.nom) {
+                    if let url = store.exporterClientsFichier(separerNomPrenom: pendingExportSeparer, categorieID: cat.id) {
+                        exportClientsShareItem = IdentifiableURL(url: url)
+                    }
+                }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Choisissez la catégorie à exporter ou exportez tout.")
         }
     }
 
@@ -100,24 +134,6 @@ struct PlusReglageView: View {
                     .font(.headline)
                     .foregroundStyle(.ocean)
                 Spacer()
-            }
-
-            Button {
-                showCampagneSetup = true
-            } label: {
-                HStack {
-                    Image(systemName: "gearshape.2")
-                    Text("Configurer la campagne")
-                        .fontWeight(.medium)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color(.systemGray6))
-                .foregroundStyle(.primary)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
 
             Button {
@@ -146,8 +162,14 @@ struct PlusReglageView: View {
                     Text("Importer une liste de clients")
                         .fontWeight(.medium)
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
+                    if !storeManager.proUnlocked {
+                        Image(systemName: "lock.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -155,6 +177,8 @@ struct PlusReglageView: View {
                 .foregroundStyle(.ocean)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
+            .disabled(!storeManager.proUnlocked)
+            .opacity(storeManager.proUnlocked ? 1 : 0.5)
 
             Button {
                 showExportFormat = true
@@ -164,13 +188,19 @@ struct PlusReglageView: View {
                     Text("Exporter la liste de clients")
                         .fontWeight(.medium)
                     Spacer()
-                    Text("\(store.orders.filter { !$0.nom.isEmpty }.count)")
-                        .font(.caption)
-                        .foregroundStyle(.ocean)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.ocean.opacity(0.15))
-                        .clipShape(Capsule())
+                    if !storeManager.proUnlocked {
+                        Image(systemName: "lock.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else {
+                        Text("\(store.orders.filter { !$0.nomComplet.isEmpty }.count)")
+                            .font(.caption)
+                            .foregroundStyle(.ocean)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.ocean.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -178,7 +208,8 @@ struct PlusReglageView: View {
                 .foregroundStyle(.ocean)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .disabled(store.orders.isEmpty)
+            .disabled(!storeManager.proUnlocked || store.orders.isEmpty)
+            .opacity(storeManager.proUnlocked ? 1 : 0.5)
         }
         .padding()
         .background(.ultraThinMaterial)

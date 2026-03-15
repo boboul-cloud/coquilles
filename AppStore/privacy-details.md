@@ -1,4 +1,4 @@
-# Coquilles — App Privacy Details (Apple)
+# Groop — App Privacy Details (Apple)
 
 Ce document correspond aux informations à remplir dans la section
 **« App Privacy »** d'App Store Connect.
@@ -11,7 +11,7 @@ Ce document correspond aux informations à remplir dans la section
 >
 > **Réponse : Non**
 
-Coquilles ne collecte aucune donnée. Toutes les informations saisies par
+Groop ne collecte aucune donnée. Toutes les informations saisies par
 l'utilisateur (noms, numéros de téléphone, commandes, paiements) sont
 stockées **localement sur l'appareil** via UserDefaults et le système de
 fichiers (Documents/). Aucune donnée n'est transmise à un serveur, un
@@ -45,7 +45,7 @@ service d'analyse ou un tiers.
 | Framework        | Données transmises | Notes                                    |
 |------------------|--------------------|------------------------------------------|
 | SwiftUI / UIKit  | Aucune             | UI locale uniquement                     |
-| MessageUI (SMS)  | Aucune par l'app   | L'envoi passe par l'app Messages native ; Coquilles n'a pas accès au résultat de l'envoi |
+| MessageUI (SMS)  | Aucune par l'app   | L'envoi passe par l'app Messages native ; Groop n'a pas accès au résultat de l'envoi |
 | QuickLook        | Aucune             | Prévisualisation locale de PDF           |
 | FileManager      | Aucune             | Lecture/écriture locale uniquement       |
 | UserDefaults     | Aucune             | Stockage local sur l'appareil            |

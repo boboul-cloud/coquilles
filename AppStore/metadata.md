@@ -1,8 +1,8 @@
-# Coquilles — Métadonnées App Store
+# Groop — Métadonnées App Store
 
 ## Informations générales
 
-- **Nom de l'app** : Coquilles
+- **Nom de l'app** : Groop
 - **Sous-titre** : Commandes groupées faciles
 - **Catégorie principale** : Utilitaires
 - **Catégorie secondaire** : Économie et entreprise
@@ -16,16 +16,16 @@
 
 | Champ App Store Connect         | URL                                                                 |
 |---------------------------------|---------------------------------------------------------------------|
-| URL de la politique de confidentialité | https://boboul-cloud.github.io/coquilles/confidentialite.html |
-| URL des conditions d'utilisation       | https://boboul-cloud.github.io/coquilles/conditions.html     |
-| URL de support                         | https://boboul-cloud.github.io/coquilles/support.html        |
-| URL marketing (optionnel)              | https://boboul-cloud.github.io/coquilles/support.html        |
+| URL de la politique de confidentialité | https://boboul-cloud.github.io/groop/confidentialite.html |
+| URL des conditions d'utilisation       | https://boboul-cloud.github.io/groop/conditions.html     |
+| URL de support                         | https://boboul-cloud.github.io/groop/support.html        |
+| URL marketing (optionnel)              | https://boboul-cloud.github.io/groop/support.html        |
 
 ---
 
 ## Description (max 4 000 caractères)
 
-Coquilles simplifie la gestion de vos campagnes de commandes groupées. Que vous organisiez un achat groupé de coquilles Saint-Jacques, d'huîtres ou de tout autre produit, cette application vous accompagne de la prise de commande jusqu'à la livraison.
+Groop simplifie la gestion de vos campagnes de commandes groupées. Que vous organisiez un achat groupé de coquilles Saint-Jacques, d'huîtres ou de tout autre produit, cette application vous accompagne de la prise de commande jusqu'à la livraison.
 
 **📋 Gestion des commandes**
 • Ajoutez vos clients et leurs commandes en quelques secondes
@@ -77,13 +77,13 @@ Gérez vos achats groupés de A à Z : commandes, paiements, exports PDF et page
 
 ## Mots-clés (max 100 caractères, séparés par des virgules)
 
-commandes,groupées,achat,groupé,coquilles,huîtres,paiement,suivi,PDF,gestion
+commandes,groupées,achat,groupé,groop,huîtres,paiement,suivi,PDF,gestion
 
 ---
 
 ## Quoi de neuf (version 1.0)
 
-Première version de Coquilles ! 🐚
+Première version de Groop ! 📦
 
 • Gestion complète des commandes groupées
 • Suivi des paiements (chèques et espèces)

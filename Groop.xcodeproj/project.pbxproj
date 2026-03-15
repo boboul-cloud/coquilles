@@ -6,8 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
-		BF3748962F61882E006253E8 /* coquilles.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = coquilles.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BF3748962F61882E006253E8 /* Groop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Groop.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -40,7 +43,7 @@
 		BF3748972F61882E006253E8 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				BF3748962F61882E006253E8 /* coquilles.app */,
+				BF3748962F61882E006253E8 /* Groop.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +51,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		BF3748952F61882E006253E8 /* coquilles */ = {
+		BF3748952F61882E006253E8 /* Groop */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = BF3748A12F618830006253E8 /* Build configuration list for PBXNativeTarget "coquilles" */;
+			buildConfigurationList = BF3748A12F618830006253E8 /* Build configuration list for PBXNativeTarget "Groop" */;
 			buildPhases = (
 				BF3748922F61882E006253E8 /* Sources */,
 				BF3748932F61882E006253E8 /* Frameworks */,
@@ -63,11 +66,11 @@
 			fileSystemSynchronizedGroups = (
 				BF3748982F61882E006253E8 /* coquilles */,
 			);
-			name = coquilles;
+			name = Groop;
 			packageProductDependencies = (
 			);
 			productName = coquilles;
-			productReference = BF3748962F61882E006253E8 /* coquilles.app */;
+			productReference = BF3748962F61882E006253E8 /* Groop.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +88,7 @@
 					};
 				};
 			};
-			buildConfigurationList = BF3748912F61882E006253E8 /* Build configuration list for PBXProject "coquilles" */;
+			buildConfigurationList = BF3748912F61882E006253E8 /* Build configuration list for PBXProject "Groop" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,7 +102,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				BF3748952F61882E006253E8 /* coquilles */,
+				BF3748952F61882E006253E8 /* Groop */,
 			);
 		};
 /* End PBXProject section */
@@ -178,7 +181,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -236,7 +239,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -267,7 +270,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "bob.oulhen-gmail.com.coquilles";
+				PRODUCT_BUNDLE_IDENTIFIER = "bob.oulhen-gmail.com.groop";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -275,7 +278,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -300,7 +303,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "bob.oulhen-gmail.com.coquilles";
+				PRODUCT_BUNDLE_IDENTIFIER = "bob.oulhen-gmail.com.groop";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -308,14 +311,14 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		BF3748912F61882E006253E8 /* Build configuration list for PBXProject "coquilles" */ = {
+		BF3748912F61882E006253E8 /* Build configuration list for PBXProject "Groop" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BF37489F2F618830006253E8 /* Debug */,
@@ -324,7 +327,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BF3748A12F618830006253E8 /* Build configuration list for PBXNativeTarget "coquilles" */ = {
+		BF3748A12F618830006253E8 /* Build configuration list for PBXNativeTarget "Groop" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BF3748A22F618830006253E8 /* Debug */,

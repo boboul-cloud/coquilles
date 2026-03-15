@@ -1,6 +1,6 @@
 //
 //  PaiementsView.swift
-//  coquilles
+//  Groop
 //
 //  Vue des paiements avec graphiques visuels et résumé.
 //
@@ -114,7 +114,7 @@ struct PaiementsView: View {
                             Divider()
                             ForEach(store.orders.filter { ($0.estLivre || $0.partiellementLivre) && $0.resteARegler(variantes: store.variantes) > 0 }) { order in
                                 HStack {
-                                    Text(order.nom.isEmpty ? "Sans nom" : order.nom)
+                                    Text(order.nomComplet.isEmpty ? "Sans nom" : order.nomComplet)
                                         .fontWeight(.medium)
                                     Spacer()
                                     Text(String(format: "%.2f €", order.resteARegler(variantes: store.variantes)))

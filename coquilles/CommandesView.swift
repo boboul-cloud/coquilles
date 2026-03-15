@@ -1,6 +1,6 @@
 //
 //  CommandesView.swift
-//  coquilles
+//  Groop
 //
 //  Liste des commandes modernisée avec recherche et filtres.
 //
@@ -9,15 +9,17 @@ import SwiftUI
 
 struct CommandesView: View {
     @ObservedObject var store: OrderStore
+    @ObservedObject var storeManager: StoreManager
     @State private var searchText = ""
     @State private var filtreCommande: Bool? = nil
     @State private var filtrePaye: Bool? = nil
     @State private var filtreLivre: Bool? = nil
     @State private var filtreCategorie: UUID? = nil
+    @State private var showProUpgrade = false
 
     private func filtrerCommande(_ order: Order) -> Bool {
         let matchSearch = searchText.isEmpty
-            || order.nom.localizedCaseInsensitiveContains(searchText)
+            || order.nomComplet.localizedCaseInsensitiveContains(searchText)
             || order.telephone.contains(searchText)
 
         let matchCommande: Bool
@@ -169,8 +171,12 @@ struct CommandesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        withAnimation(.spring(response: 0.4)) {
-                            store.ajouterCommande(categorieID: filtreCategorie)
+                        if storeManager.clientsLimiteAtteinte(count: store.orders.count) {
+                            showProUpgrade = true
+                        } else {
+                            withAnimation(.spring(response: 0.4)) {
+                                store.ajouterCommande(categorieID: filtreCategorie)
+                            }
                         }
                     } label: {
                         Image(systemName: "plus.circle.fill")
@@ -179,6 +185,9 @@ struct CommandesView: View {
                             .symbolEffect(.bounce, value: store.orders.count)
                     }
                 }
+            }
+            .sheet(isPresented: $showProUpgrade) {
+                GroopProView(storeManager: storeManager)
             }
         }
     }
@@ -243,9 +252,9 @@ struct ModernOrderRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 // Nom + Total
                 HStack {
-                    Text(order.nom.isEmpty ? "Sans nom" : order.nom)
+                    Text(order.nomComplet.isEmpty ? "Sans nom" : order.nomComplet)
                         .fontWeight(.semibold)
-                        .foregroundStyle(order.nom.isEmpty ? .secondary : .primary)
+                        .foregroundStyle(order.nomComplet.isEmpty ? .secondary : .primary)
 
                     Spacer()
 
@@ -330,9 +339,10 @@ struct ModernOrderRow: View {
     }
 
     private var initials: String {
-        let parts = order.nom.split(separator: " ").prefix(2)
-        return parts.compactMap { $0.first.map { String($0).uppercased() } }.joined()
-            .isEmpty ? "?" : parts.compactMap { $0.first.map { String($0).uppercased() } }.joined()
+        let p = order.prenom.first.map { String($0).uppercased() } ?? ""
+        let n = order.nom.first.map { String($0).uppercased() } ?? ""
+        let result = p + n
+        return result.isEmpty ? "?" : result
     }
 
     private var avatarColor: Color {
@@ -371,7 +381,18 @@ struct ModernOrderDetailView: View {
                         Image(systemName: "person.fill")
                             .foregroundStyle(.ocean)
                     }
-                    TextField("Nom du client", text: $order.nom)
+                    TextField("Prénom", text: $order.prenom)
+                        .font(.headline)
+                }
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.ocean.opacity(0.15))
+                            .frame(width: 50, height: 50)
+                        Image(systemName: "person.text.rectangle")
+                            .foregroundStyle(.ocean)
+                    }
+                    TextField("Nom", text: $order.nom)
                         .font(.headline)
                 }
                 if !store.categories.isEmpty {
@@ -689,7 +710,7 @@ struct ModernOrderDetailView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
-        .navigationTitle(order.nom.isEmpty ? "Nouvelle commande" : order.nom)
+        .navigationTitle(order.nomComplet.isEmpty ? "Nouvelle commande" : order.nomComplet)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {

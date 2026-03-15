@@ -1,8 +1,8 @@
 //
 //  Theme.swift
-//  coquilles
+//  Groop
 //
-//  Thème visuel océan pour l'application Coquilles.
+//  Thème visuel océan pour l'application Groop.
 //
 
 import SwiftUI

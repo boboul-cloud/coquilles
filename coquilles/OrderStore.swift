@@ -1,6 +1,6 @@
 //
 //  OrderStore.swift
-//  coquilles
+//  Groop
 //
 //  Created by Robert Oulhen on 11/03/2026.
 //
@@ -22,7 +22,7 @@ struct CampagneData: Codable {
 
 class OrderStore: ObservableObject {
     @Published var orders: [Order] = []
-    @Published var titreCampagne: String = "Coquilles"
+    @Published var titreCampagne: String = "Groop"
     @Published var uniteQuantite: UniteQuantite = .kg
     @Published var variantes: [Variante] = []
     @Published var categories: [CategorieClient] = []
@@ -75,7 +75,7 @@ class OrderStore: ObservableObject {
     }
 
     var nombreParticipants: Int {
-        orders.filter { !$0.lignes.isEmpty && !$0.nom.isEmpty }.count
+        orders.filter { !$0.lignes.isEmpty && !$0.nomComplet.isEmpty }.count
     }
 
     var resteALivrer: Int {
@@ -184,28 +184,44 @@ class OrderStore: ObservableObject {
 
     /// Exporte la liste des clients au format texte.
     /// - `separerNomPrenom`: si true → Prénom;Nom;Téléphone (compatible autre app)
-    /// - `separerNomPrenom`: si false → Nom;Téléphone;Catégorie (format Coquilles)
-    func exporterClientsFichier(separerNomPrenom: Bool = false) -> URL? {
+    /// - `separerNomPrenom`: si false → Nom;Téléphone;Catégorie (format Groop)
+    /// - `categorieID`: si défini, exporte uniquement les clients de cette catégorie
+    func exporterClientsFichier(separerNomPrenom: Bool = false, categorieID: UUID? = nil) -> URL? {
+        let sourceOrders: [Order]
+        if let catID = categorieID {
+            sourceOrders = orders.filter { $0.categorieID == catID }
+        } else {
+            sourceOrders = orders
+        }
         var lignes: [String] = []
-        for order in orders {
-            let nomComplet = order.nom
-            guard !nomComplet.isEmpty else { continue }
+        // En-tête catégorie pour le format Temps de Jeu
+        if separerNomPrenom, let catID = categorieID,
+           let catNom = categories.first(where: { $0.id == catID })?.nom, !catNom.isEmpty {
+            lignes.append("# Catégorie: \(catNom)")
+        }
+        for order in sourceOrders {
+            guard !order.nomComplet.isEmpty else { continue }
             let tel = order.telephone
             if separerNomPrenom {
-                let composants = nomComplet.split(separator: " ", maxSplits: 1).map(String.init)
-                let prenom = composants.first ?? nomComplet
-                let nom = composants.count > 1 ? composants[1] : ""
-                lignes.append([prenom, nom, tel].joined(separator: ";"))
+                lignes.append([order.prenom, order.nom, tel].joined(separator: ";"))
             } else {
                 let catNom = categories.first(where: { $0.id == order.categorieID })?.nom ?? ""
-                lignes.append([nomComplet, tel, catNom].joined(separator: ";"))
+                lignes.append([order.nomComplet, tel, catNom].joined(separator: ";"))
             }
         }
-        guard !lignes.isEmpty else { return nil }
+        // Vérifier qu'il y a au moins une ligne de données (hors en-tête)
+        let dataLines = lignes.filter { !$0.hasPrefix("#") }
+        guard !dataLines.isEmpty else { return nil }
         let contenu = lignes.joined(separator: "\n")
         let tmpDir = FileManager.default.temporaryDirectory
         let fileName = titreCampagne.isEmpty ? "clients" : titreCampagne.replacingOccurrences(of: " ", with: "_")
-        let suffix = separerNomPrenom ? "_clients_pntel" : "_clients"
+        let catSuffix: String
+        if let catID = categorieID, let catNom = categories.first(where: { $0.id == catID })?.nom {
+            catSuffix = "_" + catNom.replacingOccurrences(of: " ", with: "_")
+        } else {
+            catSuffix = ""
+        }
+        let suffix = separerNomPrenom ? "_clients_pntel\(catSuffix)" : "_clients\(catSuffix)"
         let url = tmpDir.appendingPathComponent("\(fileName)\(suffix).txt")
         do {
             try contenu.write(to: url, atomically: true, encoding: .utf8)
@@ -234,8 +250,11 @@ class OrderStore: ObservableObject {
             .filter { !$0.isEmpty }
 
         // Détecter le format sur la première ligne
+        // Format A : "Prénom;Nom;Téléphone" → le 2e champ est un nom (non vide, pas un tel), le 3e est un tel ou vide
+        // Format B : "Nom complet;Téléphone;Catégorie" → le 2e champ est un tel (ou vide avec 3e champ non-tel)
         var formatPrenomNomTel = false
-        if let premiere = lignes.first {
+        if let premiere = lignes.first?.trimmingCharacters(in: .whitespaces),
+           !premiere.hasPrefix("#") {
             let p: [String]
             if premiere.contains(";") {
                 p = premiere.components(separatedBy: ";").map { $0.trimmingCharacters(in: .whitespaces) }
@@ -244,9 +263,16 @@ class OrderStore: ObservableObject {
             } else {
                 p = [premiere]
             }
-            // Si 3+ champs et le 2e ne ressemble pas à un téléphone → Prénom;Nom;Téléphone
-            if p.count >= 3 && !ressembleATelephone(p[1]) {
-                formatPrenomNomTel = true
+            if p.count >= 3 {
+                let champ2 = p[1]
+                let champ3 = p[2]
+                // C'est Prénom;Nom;Téléphone si :
+                // - le 2e champ n'est pas un numéro ET n'est pas vide
+                // - ET le 3e champ ressemble à un tel (ou est vide)
+                if !champ2.isEmpty && !ressembleATelephone(champ2)
+                    && (champ3.isEmpty || ressembleATelephone(champ3)) {
+                    formatPrenomNomTel = true
+                }
             }
         }
 
@@ -261,27 +287,30 @@ class OrderStore: ObservableObject {
                 parts = [ligne]
             }
 
-            let nom: String
+            let importPrenom: String
+            let importNom: String
             let tel: String
             let catNom: String
 
             if formatPrenomNomTel && parts.count >= 2 {
                 // Format : Prénom;Nom;Téléphone
-                let prenom = parts[0]
-                let nomFamille = parts.count > 1 ? parts[1] : ""
-                nom = [prenom, nomFamille].filter { !$0.isEmpty }.joined(separator: " ")
+                importPrenom = parts[0]
+                importNom = parts.count > 1 ? parts[1] : ""
                 tel = parts.count > 2 ? parts[2] : ""
                 catNom = ""
             } else {
-                // Format : Nom;Téléphone;Catégorie
-                nom = parts[0]
+                // Format : Nom;Téléphone;Catégorie → séparer au premier espace
+                let composants = parts[0].split(separator: " ", maxSplits: 1).map(String.init)
+                importPrenom = composants.first ?? parts[0]
+                importNom = composants.count > 1 ? composants[1] : ""
                 tel = parts.count > 1 ? parts[1] : ""
                 catNom = parts.count > 2 ? parts[2] : ""
             }
-            guard !nom.isEmpty else { continue }
+            let nomComplet = [importPrenom, importNom].filter { !$0.isEmpty }.joined(separator: " ")
+            guard !nomComplet.isEmpty else { continue }
 
-            // Éviter les doublons par nom
-            if orders.contains(where: { $0.nom.localizedCaseInsensitiveCompare(nom) == .orderedSame }) {
+            // Éviter les doublons par nom complet
+            if orders.contains(where: { $0.nomComplet.localizedCaseInsensitiveCompare(nomComplet) == .orderedSame }) {
                 continue
             }
 
@@ -298,7 +327,8 @@ class OrderStore: ObservableObject {
             }
 
             var order = Order()
-            order.nom = nom
+            order.prenom = importPrenom
+            order.nom = importNom
             order.telephone = tel
             order.categorieID = catID
             orders.append(order)
@@ -306,6 +336,32 @@ class OrderStore: ObservableObject {
         }
         if count > 0 { save() }
         return count
+    }
+
+    /// Réinitialise la campagne. Si garderClients est true, conserve les noms/téléphones mais vide leurs commandes et paiements.
+    func nouvelleCampagne(garderClients: Bool) {
+        titreCampagne = ""
+        uniteQuantite = .kg
+        variantes = []
+        categories = []
+        telephoneVendeur = ""
+        if garderClients {
+            for i in orders.indices {
+                orders[i].lignes = []
+                orders[i].reglements = []
+                orders[i].modePaiement = nil
+                orders[i].impaye = 0
+                orders[i].impayeModePaiement = nil
+                orders[i].livre = false
+                orders[i].dateLivraison = nil
+                orders[i].dateReglement = nil
+                orders[i].dateReglementImpaye = nil
+                orders[i].categorieID = nil
+            }
+        } else {
+            orders = []
+        }
+        save()
     }
 
     func save() {
@@ -403,9 +459,9 @@ class OrderStore: ObservableObject {
             drawLine("DÉTAIL PAR CLIENT", attr: headerAttr)
             y += 4
 
-            for order in orders where !order.nom.isEmpty {
+            for order in orders where !order.nomComplet.isEmpty {
                 checkPage()
-                drawLine("▸ \(order.nom)" + (order.telephone.isEmpty ? "" : "  —  \(order.telephone)"), attr: headerAttr)
+                drawLine("▸ \(order.nomComplet)" + (order.telephone.isEmpty ? "" : "  —  \(order.telephone)"), attr: headerAttr)
 
                 if !order.lignes.isEmpty {
                     for ligne in order.lignes {
@@ -535,7 +591,7 @@ class OrderStore: ObservableObject {
         for order in orders where order.estValide {
             for ligne in order.lignes where !ligne.variante.isEmpty && ligne.quantite > 0 {
                 let cle = CleGroupe(variante: ligne.variante, taille: ligne.taille, couleur: ligne.couleur)
-                let detail = DetailClient(nom: order.nom, quantite: ligne.quantite)
+                let detail = DetailClient(nom: order.nomComplet, quantite: ligne.quantite)
                 groupes[cle, default: []].append(detail)
             }
         }
@@ -741,7 +797,7 @@ class OrderStore: ObservableObject {
         var sections: [CatSection] = []
         for cat in categories {
             let clients = orders.filter { $0.estValide && $0.categorieID == cat.id }
-                .sorted { $0.nom.localizedCompare($1.nom) == .orderedAscending }
+                .sorted { $0.nomComplet.localizedCompare($1.nomComplet) == .orderedAscending }
             if !clients.isEmpty {
                 sections.append(CatSection(titre: cat.nom.isEmpty ? "Sans nom" : cat.nom, clients: clients))
             }
@@ -749,7 +805,7 @@ class OrderStore: ObservableObject {
         // Clients sans catégorie
         let sansCategorie = orders.filter { o in
             o.estValide && (o.categorieID == nil || !categories.contains(where: { $0.id == o.categorieID }))
-        }.sorted { $0.nom.localizedCompare($1.nom) == .orderedAscending }
+        }.sorted { $0.nomComplet.localizedCompare($1.nomComplet) == .orderedAscending }
         if !sansCategorie.isEmpty {
             sections.append(CatSection(titre: categories.isEmpty ? "" : "Sans catégorie", clients: sansCategorie))
         }
@@ -816,7 +872,7 @@ class OrderStore: ObservableObject {
                     checkPage(CGFloat(lignesCount + 2) * 16)
 
                     // Nom du client + checkbox
-                    drawLine("☐  \(client.nom.isEmpty ? "Sans nom" : client.nom)", attr: clientAttr, indent: 4)
+                    drawLine("☐  \(client.nomComplet.isEmpty ? "Sans nom" : client.nomComplet)", attr: clientAttr, indent: 4)
 
                     for ligne in client.lignes where ligne.quantite > 0 {
                         var detail = "\(formatQte(ligne.quantite))  \(ligne.variante)"
@@ -967,7 +1023,7 @@ class OrderStore: ObservableObject {
            let decoded = try? JSONDecoder().decode([Order].self, from: data) {
             orders = decoded
         }
-        titreCampagne = UserDefaults.standard.string(forKey: titreKey) ?? "Coquilles"
+        titreCampagne = UserDefaults.standard.string(forKey: titreKey) ?? "Groop"
         if let uniteRaw = UserDefaults.standard.string(forKey: uniteKey),
            let unite = UniteQuantite(rawValue: uniteRaw) {
             uniteQuantite = unite
@@ -1026,6 +1082,20 @@ class OrderStore: ObservableObject {
                     }
                 }
             }
+            // Migrer nom unique → prenom + nom (ancien format sans champ prenom)
+            if orders[i].prenom.isEmpty && !orders[i].nom.isEmpty {
+                let composants = orders[i].nom.split(separator: " ", maxSplits: 1).map(String.init)
+                if composants.count > 1 {
+                    orders[i].prenom = composants[0]
+                    orders[i].nom = composants[1]
+                    needsSave = true
+                } else {
+                    // Un seul mot → mettre en prénom
+                    orders[i].prenom = orders[i].nom
+                    orders[i].nom = ""
+                    needsSave = true
+                }
+            }
         }
         if needsSave { save() }
     }
@@ -1033,7 +1103,7 @@ class OrderStore: ObservableObject {
     // MARK: - Génération page web commande
 
     /// URL de base de la page GitHub Pages
-    private let pagesBaseURL = "https://boboul-cloud.github.io/coquilles/"
+    private let pagesBaseURL = "https://boboul-cloud.github.io/groop/"
 
     /// Génère un lien web vers la page de commande hébergée sur GitHub Pages
     /// Format compact : "2|titre|unite|telVendeur|nom~prix~t1,t2~c1,c2|..." en base64url
@@ -1071,7 +1141,7 @@ class OrderStore: ObservableObject {
 
     /// Importe une commande depuis les données encodées dans un deep link. Retourne le nom du client importé, ou nil en cas d'échec.
     func importerCommandeDepuisURL(_ url: URL) -> String? {
-        guard url.scheme == "coquilles", url.host == "order" else { return nil }
+        guard url.scheme == "groop", url.host == "order" else { return nil }
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let dataParam = components.queryItems?.first(where: { $0.name == "d" })?.value,
               let decoded = Data(base64Encoded: dataParam),
@@ -1107,12 +1177,16 @@ class OrderStore: ObservableObject {
                 )
                 orders[index].lignes.append(ligne)
             }
-            if orders[index].nom.isEmpty {
-                orders[index].nom = commande.n
+            if orders[index].nomComplet.isEmpty {
+                let composants = commande.n.split(separator: " ", maxSplits: 1).map(String.init)
+                orders[index].prenom = composants.first ?? commande.n
+                orders[index].nom = composants.count > 1 ? composants[1] : ""
             }
         } else {
             var order = Order()
-            order.nom = commande.n
+            let composants = commande.n.split(separator: " ", maxSplits: 1).map(String.init)
+            order.prenom = composants.first ?? commande.n
+            order.nom = composants.count > 1 ? composants[1] : ""
             order.telephone = tel
             order.lignes = commande.l.map { l in
                 LigneCommande(

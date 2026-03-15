@@ -1,6 +1,6 @@
 //
 //  CampagneSetupView.swift
-//  coquilles
+//  Groop
 //
 //  Configuration de la campagne : titre, unité, variantes avec tailles et couleurs.
 //
