@@ -182,22 +182,31 @@ class OrderStore: ObservableObject {
         save()
     }
 
-    /// Exporte la liste des clients au format texte (Nom;téléphone;catégorie).
-    /// Même format que l'import pour compatibilité bidirectionnelle.
-    func exporterClientsFichier() -> URL? {
+    /// Exporte la liste des clients au format texte.
+    /// - `separerNomPrenom`: si true → Prénom;Nom;Téléphone (compatible autre app)
+    /// - `separerNomPrenom`: si false → Nom;Téléphone;Catégorie (format Coquilles)
+    func exporterClientsFichier(separerNomPrenom: Bool = false) -> URL? {
         var lignes: [String] = []
         for order in orders {
-            let nom = order.nom
-            guard !nom.isEmpty else { continue }
+            let nomComplet = order.nom
+            guard !nomComplet.isEmpty else { continue }
             let tel = order.telephone
-            let catNom = categories.first(where: { $0.id == order.categorieID })?.nom ?? ""
-            lignes.append([nom, tel, catNom].joined(separator: ";"))
+            if separerNomPrenom {
+                let composants = nomComplet.split(separator: " ", maxSplits: 1).map(String.init)
+                let prenom = composants.first ?? nomComplet
+                let nom = composants.count > 1 ? composants[1] : ""
+                lignes.append([prenom, nom, tel].joined(separator: ";"))
+            } else {
+                let catNom = categories.first(where: { $0.id == order.categorieID })?.nom ?? ""
+                lignes.append([nomComplet, tel, catNom].joined(separator: ";"))
+            }
         }
         guard !lignes.isEmpty else { return nil }
         let contenu = lignes.joined(separator: "\n")
         let tmpDir = FileManager.default.temporaryDirectory
         let fileName = titreCampagne.isEmpty ? "clients" : titreCampagne.replacingOccurrences(of: " ", with: "_")
-        let url = tmpDir.appendingPathComponent("\(fileName)_clients.txt")
+        let suffix = separerNomPrenom ? "_clients_pntel" : "_clients"
+        let url = tmpDir.appendingPathComponent("\(fileName)\(suffix).txt")
         do {
             try contenu.write(to: url, atomically: true, encoding: .utf8)
             return url
@@ -206,8 +215,16 @@ class OrderStore: ObservableObject {
         }
     }
 
+    /// Détecte si une chaîne ressemble à un numéro de téléphone.
+    private func ressembleATelephone(_ s: String) -> Bool {
+        let chiffres = s.filter { $0.isNumber }
+        return chiffres.count >= 4
+    }
+
     /// Importe des clients depuis un fichier texte (un par ligne).
-    /// Format : "Nom;téléphone;catégorie" — téléphone et catégorie optionnels.
+    /// Formats détectés automatiquement :
+    /// - "Prénom;Nom;Téléphone" (si le 2e champ n'est pas un numéro)
+    /// - "Nom;Téléphone;Catégorie" (si le 2e champ est un numéro)
     /// Séparateur accepté : ";" ou ","
     /// Retourne le nombre de clients importés.
     func importerClientsDepuisFichier(url: URL) -> Int {
@@ -215,6 +232,23 @@ class OrderStore: ObservableObject {
         let lignes = contenu.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
+
+        // Détecter le format sur la première ligne
+        var formatPrenomNomTel = false
+        if let premiere = lignes.first {
+            let p: [String]
+            if premiere.contains(";") {
+                p = premiere.components(separatedBy: ";").map { $0.trimmingCharacters(in: .whitespaces) }
+            } else if premiere.contains(",") {
+                p = premiere.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            } else {
+                p = [premiere]
+            }
+            // Si 3+ champs et le 2e ne ressemble pas à un téléphone → Prénom;Nom;Téléphone
+            if p.count >= 3 && !ressembleATelephone(p[1]) {
+                formatPrenomNomTel = true
+            }
+        }
 
         var count = 0
         for ligne in lignes {
@@ -226,9 +260,24 @@ class OrderStore: ObservableObject {
             } else {
                 parts = [ligne]
             }
-            let nom = parts[0]
-            let tel = parts.count > 1 ? parts[1] : ""
-            let catNom = parts.count > 2 ? parts[2] : ""
+
+            let nom: String
+            let tel: String
+            let catNom: String
+
+            if formatPrenomNomTel && parts.count >= 2 {
+                // Format : Prénom;Nom;Téléphone
+                let prenom = parts[0]
+                let nomFamille = parts.count > 1 ? parts[1] : ""
+                nom = [prenom, nomFamille].filter { !$0.isEmpty }.joined(separator: " ")
+                tel = parts.count > 2 ? parts[2] : ""
+                catNom = ""
+            } else {
+                // Format : Nom;Téléphone;Catégorie
+                nom = parts[0]
+                tel = parts.count > 1 ? parts[1] : ""
+                catNom = parts.count > 2 ? parts[2] : ""
+            }
             guard !nom.isEmpty else { continue }
 
             // Éviter les doublons par nom

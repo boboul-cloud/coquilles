@@ -17,6 +17,7 @@ struct PlusReglageView: View {
     @State private var importClientsCount = 0
     @State private var showImportClientsFeedback = false
     @State private var exportClientsShareItem: IdentifiableURL? = nil
+    @State private var showExportFormat = false
 
     private let confidentialiteURL = URL(string: "https://boboul-cloud.github.io/coquilles/confidentialite.html")!
     private let conditionsURL = URL(string: "https://boboul-cloud.github.io/coquilles/conditions.html")!
@@ -70,6 +71,21 @@ struct PlusReglageView: View {
         }
         .sheet(item: $exportClientsShareItem) { item in
             ShareSheet(activityItems: [item.url])
+        }
+        .confirmationDialog("Format d'export", isPresented: $showExportFormat, titleVisibility: .visible) {
+            Button("Nom ; Téléphone ; Catégorie") {
+                if let url = store.exporterClientsFichier(separerNomPrenom: false) {
+                    exportClientsShareItem = IdentifiableURL(url: url)
+                }
+            }
+            Button("Prénom ; Nom ; Téléphone") {
+                if let url = store.exporterClientsFichier(separerNomPrenom: true) {
+                    exportClientsShareItem = IdentifiableURL(url: url)
+                }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Choisissez le format selon l'application de destination.")
         }
     }
 
@@ -141,9 +157,7 @@ struct PlusReglageView: View {
             }
 
             Button {
-                if let url = store.exporterClientsFichier() {
-                    exportClientsShareItem = IdentifiableURL(url: url)
-                }
+                showExportFormat = true
             } label: {
                 HStack {
                     Image(systemName: "person.crop.circle.badge.arrow.right")
