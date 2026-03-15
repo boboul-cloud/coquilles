@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Support – Coquilles</title>
+<style>
+:root{--ocean:#1B6B93;--seafoam:#4ECDC4;--sand:#F7F3E9;--coral:#FF6B6B}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--sand);color:#333;min-height:100vh}
+.header{background:linear-gradient(135deg,var(--ocean),#2a9d8f);color:#fff;padding:32px 16px;text-align:center}
+.header h1{font-size:1.5em;margin-bottom:4px}
+.header p{opacity:.85;font-size:.9em}
+.container{max-width:640px;margin:0 auto;padding:20px 16px}
+.card{background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+h2{font-size:1.1em;color:var(--ocean);margin-bottom:10px}
+h3{font-size:1em;color:#555;margin:16px 0 6px}
+p,li{line-height:1.6;font-size:.95em;margin-bottom:8px}
+ul{padding-left:20px;margin-bottom:12px}
+a{color:var(--ocean)}
+.faq-q{font-weight:600;color:var(--ocean);margin-top:16px;margin-bottom:4px}
+.footer{text-align:center;padding:20px;font-size:.8em;color:#999}
+.contact-btn{display:inline-block;padding:12px 24px;background:linear-gradient(135deg,var(--ocean),#2a9d8f);color:#fff;border-radius:12px;text-decoration:none;font-weight:600;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>🐚 Support Coquilles</h1>
+    <p>Aide et questions fréquentes</p>
+</div>
+<div class="container">
+    <div class="card">
+        <h2>📖 Guide rapide</h2>
+        <h3>1. Créer une campagne</h3>
+        <p>Accédez à <strong>Plus → Réglages → Configurer la campagne</strong> pour définir le titre, l'unité de mesure (kg ou unités), votre numéro de téléphone, et vos produits (variantes avec prix, tailles et couleurs optionnelles).</p>
+
+        <h3>2. Ajouter des commandes</h3>
+        <p>Dans l'onglet <strong>Commandes</strong>, appuyez sur <strong>+</strong> pour ajouter un client. Renseignez son nom, téléphone, puis ajoutez ses lignes de commande.</p>
+
+        <h3>3. Suivre les paiements</h3>
+        <p>L'onglet <strong>Paiements</strong> vous permet d'enregistrer les règlements (espèces ou chèques) et de suivre qui a payé.</p>
+
+        <h3>4. Exporter et partager</h3>
+        <p>Dans <strong>Plus → Exportation</strong>, générez des PDF (récapitulatif, bon de commande, fiche de distribution) et partagez-les.</p>
+
+        <h3>5. Page web de commande</h3>
+        <p>Dans <strong>Plus → Commande</strong>, partagez un lien web à vos clients. Ils remplissent leur commande dans leur navigateur et vous la recevez par SMS.</p>
+    </div>
+
+    <div class="card">
+        <h2>❓ Questions fréquentes</h2>
+
+        <p class="faq-q">Mes données sont-elles envoyées sur internet ?</p>
+        <p>Non. Toutes vos données (commandes, clients, paiements) sont stockées uniquement sur votre iPhone. Rien n'est envoyé à un serveur.</p>
+
+        <p class="faq-q">Comment sauvegarder ma campagne ?</p>
+        <p>Allez dans <strong>Plus → Campagne → Sauvegarder la campagne</strong>. Vous pouvez aussi exporter le fichier JSON pour le conserver ou le transférer sur un autre appareil.</p>
+
+        <p class="faq-q">Puis-je gérer plusieurs campagnes ?</p>
+        <p>Oui. Sauvegardez votre campagne en cours, puis faites une remise à zéro pour en créer une nouvelle. Vous pourrez recharger les campagnes précédentes à tout moment.</p>
+
+        <p class="faq-q">Comment fonctionne la page web de commande ?</p>
+        <p>Un lien unique est généré contenant votre catalogue. Vos clients l'ouvrent dans leur navigateur, remplissent le formulaire, et la commande vous est envoyée par SMS. Aucun serveur n'est impliqué.</p>
+
+        <p class="faq-q">L'application fonctionne-t-elle hors connexion ?</p>
+        <p>Oui, entièrement. Seule la page web de commande nécessite que vos clients aient accès à internet.</p>
+
+        <p class="faq-q">Comment importer une liste de clients ?</p>
+        <p>Préparez un fichier texte avec une ligne par client au format <code>Nom;Téléphone;Catégorie</code>, puis importez-le depuis <strong>Plus → Réglages → Importer une liste de clients</strong>.</p>
+    </div>
+
+    <div class="card">
+        <h2>📬 Nous contacter</h2>
+        <p>Si vous avez une question, un problème ou une suggestion, n'hésitez pas à nous écrire :</p>
+        <a href="mailto:bob.oulhen@gmail.com" class="contact-btn">✉️ Envoyer un e-mail</a>
+    </div>
+</div>
+<div class="footer">
+    <p>© 2026 Robert Oulhen. Tous droits réservés.</p>
+    <p><a href="confidentialite.html">Confidentialité</a> · <a href="conditions.html">Conditions</a></p>
+</div>
+</body>
+</html>
