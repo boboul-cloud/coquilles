@@ -1129,7 +1129,7 @@ class OrderStore: ObservableObject {
                 }
                 return t
             }
-            return "\(v.nom)~\(v.prix)~\(taillesParts.joined(separator: ","))~\(v.couleurs.joined(separator: ","))"
+            return "\(v.nom)~\(v.prix)~\(taillesParts.joined(separator: ";"))~\(v.couleurs.joined(separator: ";"))"
         }
         guard !parts.isEmpty else { return nil }
         let payload = "2|\(titreCampagne)|\(uniteQuantite.rawValue)|\(telephoneVendeur)|\(parts.joined(separator: "|"))"

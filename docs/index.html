@@ -97,7 +97,8 @@ input:focus{outline:none;border-color:var(--ocean)}
   }
 
   // Parse le format compact v1 : "1|titre|unite|nom~prix~t1,t2~c1,c2|..."
-  // ou v2 : "2|titre|unite|telVendeur|nom~prix~t1,t2~c1,c2|..."
+  // ou v2 : "2|titre|unite|telVendeur|nom~prix~t1;t2~c1;c2|..."
+  // Séparateur tailles/couleurs : ";" (v2+) avec fallback "," (v1)
   function parseCompact(str) {
     var seg = str.split('|');
     var ver = parseInt(seg[0]);
@@ -112,7 +113,8 @@ input:focus{outline:none;border-color:var(--ocean)}
       var f = seg[i].split('~');
       var v = { n: f[0], x: parseFloat(f[1]) || 0, tp: {} };
       if (f[2]) {
-        var rawTailles = f[2].split(',');
+        var sep = f[2].indexOf(';') >= 0 ? ';' : ',';
+        var rawTailles = f[2].split(sep);
         v.ta = [];
         rawTailles.forEach(function(t) {
           var parts = t.split(':');
@@ -125,7 +127,10 @@ input:focus{outline:none;border-color:var(--ocean)}
           }
         });
       }
-      if (f[3]) v.co = f[3].split(',');
+      if (f[3]) {
+        var sepC = f[3].indexOf(';') >= 0 ? ';' : ',';
+        v.co = f[3].split(sepC);
+      }
       cfg.v.push(v);
     }
     return cfg;
