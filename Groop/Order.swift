@@ -28,6 +28,26 @@ struct Variante: Identifiable, Codable, Hashable {
         }
         return prix
     }
+
+    // Décodage rétrocompatible : prixTailles peut être absent dans les anciennes sauvegardes
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        nom = try c.decodeIfPresent(String.self, forKey: .nom) ?? ""
+        prix = try c.decodeIfPresent(Double.self, forKey: .prix) ?? 0
+        tailles = try c.decodeIfPresent([String].self, forKey: .tailles) ?? []
+        couleurs = try c.decodeIfPresent([String].self, forKey: .couleurs) ?? []
+        prixTailles = try c.decodeIfPresent([String: Double].self, forKey: .prixTailles) ?? [:]
+    }
+
+    init(id: UUID = UUID(), nom: String = "", prix: Double = 0, tailles: [String] = [], couleurs: [String] = [], prixTailles: [String: Double] = [:]) {
+        self.id = id
+        self.nom = nom
+        self.prix = prix
+        self.tailles = tailles
+        self.couleurs = couleurs
+        self.prixTailles = prixTailles
+    }
 }
 
 enum ModePaiement: String, Codable, CaseIterable {
