@@ -128,9 +128,7 @@ struct CommandesView: View {
                 ForEach(sectionsParCategorie, id: \.id) { section in
                     Section {
                         ForEach(section.commandes) { $order in
-                            NavigationLink {
-                                ModernOrderDetailView(order: $order, store: store)
-                            } label: {
+                            NavigationLink(value: order.id) {
                                 ModernOrderRow(order: order, store: store)
                             }
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
@@ -167,6 +165,11 @@ struct CommandesView: View {
             .listStyle(.plain)
             .scrollDismissesKeyboard(.interactively)
             .searchable(text: $searchText, prompt: "Rechercher un client…")
+            .navigationDestination(for: UUID.self) { orderID in
+                if let index = store.orders.firstIndex(where: { $0.id == orderID }) {
+                    ModernOrderDetailView(order: $store.orders[index], store: store)
+                }
+            }
             .navigationTitle("Commandes")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -410,6 +413,7 @@ struct ModernOrderDetailView: View {
                                 Text(cat.nom.isEmpty ? "Sans nom" : cat.nom).tag(UUID?.some(cat.id))
                             }
                         }
+                        .pickerStyle(.menu)
                     }
                 }
 

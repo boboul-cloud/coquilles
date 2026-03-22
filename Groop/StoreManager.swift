@@ -38,7 +38,9 @@ final class StoreManager: ObservableObject {
             let products = try await Product.products(for: [Self.proProductID])
             print("[StoreKit] Produits chargés : \(products.map(\.id))")
             product = products.first
-            if product == nil {
+            if let p = product {
+                print("[StoreKit] Produit trouvé : \(p.displayName) — \(p.displayPrice)")
+            } else {
                 print("[StoreKit] Aucun produit trouvé pour '\(Self.proProductID)'")
                 loadError = true
             }

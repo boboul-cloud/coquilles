@@ -18,6 +18,16 @@ struct Variante: Identifiable, Codable, Hashable {
     var prix: Double = 0
     var tailles: [String] = []
     var couleurs: [String] = []
+    /// Prix spécifiques par taille (clé = nom de la taille). Si absent, le prix de la variante s'applique.
+    var prixTailles: [String: Double] = [:]
+
+    /// Retourne le prix effectif pour une taille donnée : prix taille si défini, sinon prix variante.
+    func prixPourTaille(_ taille: String?) -> Double {
+        if let t = taille, let p = prixTailles[t] {
+            return p
+        }
+        return prix
+    }
 }
 
 enum ModePaiement: String, Codable, CaseIterable {
@@ -46,7 +56,8 @@ struct LigneCommande: Identifiable, Codable {
     var quantiteLivree: Double = 0
 
     func prix(variantes: [Variante]) -> Double? {
-        variantes.first { $0.nom == variante }?.prix
+        guard let v = variantes.first(where: { $0.nom == variante }) else { return nil }
+        return v.prixPourTaille(taille)
     }
 
     func total(variantes: [Variante]) -> Double? {

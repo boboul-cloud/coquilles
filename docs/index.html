@@ -110,8 +110,21 @@ input:focus{outline:none;border-color:var(--ocean)}
     }
     for (var i = startIdx; i < seg.length; i++) {
       var f = seg[i].split('~');
-      var v = { n: f[0], x: parseFloat(f[1]) || 0 };
-      if (f[2]) v.ta = f[2].split(',');
+      var v = { n: f[0], x: parseFloat(f[1]) || 0, tp: {} };
+      if (f[2]) {
+        var rawTailles = f[2].split(',');
+        v.ta = [];
+        rawTailles.forEach(function(t) {
+          var parts = t.split(':');
+          var nom = parts[0];
+          if (nom) {
+            v.ta.push(nom);
+            if (parts.length > 1 && parts[1]) {
+              v.tp[nom] = parseFloat(parts[1]);
+            }
+          }
+        });
+      }
       if (f[3]) v.co = f[3].split(',');
       cfg.v.push(v);
     }
@@ -162,10 +175,14 @@ input:focus{outline:none;border-color:var(--ocean)}
     var html = "";
     VARIANTES.forEach(function(v, i){
       html += '<div class="variante" id="var_'+i+'">';
-      html += '<div class="var-header"><span class="var-name">'+esc(v.n)+'</span><span class="var-price">'+v.x.toFixed(2)+' &euro;/'+esc(UNITE)+'</span></div>';
+      html += '<div class="var-header"><span class="var-name">'+esc(v.n)+'</span><span class="var-price" id="price_'+i+'">'+v.x.toFixed(2)+' &euro;/'+esc(UNITE)+'</span></div>';
       if (v.ta && v.ta.length) {
         html += '<div class="attr-label">Taille</div><div class="options">';
-        v.ta.forEach(function(t){ html += '<div class="chip" onclick="selTaille('+i+',this,\''+esc(t)+'\')">'+esc(t)+'</div>'; });
+        v.ta.forEach(function(t){
+          var chipLabel = esc(t);
+          if (v.tp[t] !== undefined) chipLabel += ' <small>('+v.tp[t].toFixed(2)+'&euro;)</small>';
+          html += '<div class="chip" onclick="selTaille('+i+',this,\''+esc(t)+'\')">' +chipLabel+'</div>';
+        });
         html += '</div>';
       }
       if (v.co && v.co.length) {
@@ -205,10 +222,17 @@ input:focus{outline:none;border-color:var(--ocean)}
     VARIANTES.forEach(function(v, i){
       var el = document.getElementById("var_"+i);
       var q = state[i].quantite;
+      var prixEffectif = v.x;
+      if (state[i].taille && v.tp && v.tp[state[i].taille] !== undefined) {
+        prixEffectif = v.tp[state[i].taille];
+      }
+      // Mettre à jour le prix affiché en en-tête de la variante
+      var priceEl = document.getElementById("price_"+i);
+      if (priceEl) priceEl.innerHTML = prixEffectif.toFixed(2)+' &euro;/'+esc(UNITE);
       document.getElementById("qty_"+i).textContent = fmtQte(q);
       if(q > 0){
         el.classList.add("active"); any=true;
-        var st = v.x * q; total += st;
+        var st = prixEffectif * q; total += st;
         var desc = v.n;
         if(state[i].taille) desc += " — " + state[i].taille;
         if(state[i].couleur) desc += " — " + state[i].couleur;

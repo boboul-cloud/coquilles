@@ -450,7 +450,16 @@ class OrderStore: ObservableObject {
             // Titre
             drawLine("RÉCAPITULATIF \(titreCampagne.uppercased())", attr: titleAttr)
             drawLine("Date : \(df.string(from: Date()))", attr: bodyAttr)
-            let prixInfo = variantes.map { "\($0.nom): \(String(format: "%.2f", $0.prix)) €/\(labelUnite)" }.joined(separator: "  —  ")
+            let prixInfo = variantes.map { v in
+                var label = "\(v.nom): \(String(format: "%.2f", v.prix)) €/\(labelUnite)"
+                if !v.prixTailles.isEmpty {
+                    let taillesPrix = v.tailles.compactMap { t in
+                        v.prixTailles[t].map { "\(t): \(String(format: "%.2f", $0)) €" }
+                    }
+                    if !taillesPrix.isEmpty { label += " (\(taillesPrix.joined(separator: ", ")))" }
+                }
+                return label
+            }.joined(separator: "  —  ")
             if !prixInfo.isEmpty { drawLine(prixInfo, attr: bodyAttr) }
             y += 8
             drawSeparator()
@@ -650,6 +659,7 @@ class OrderStore: ObservableObject {
             // Regroupement par variante
             var varianteEnCours = ""
             var totalVariante: Double = 0
+            var totalMontantVariante: Double = 0
 
             for cle in clesTriees {
                 guard let clients = groupes[cle] else { continue }
@@ -660,8 +670,8 @@ class OrderStore: ObservableObject {
                     // Total de la variante précédente
                     if !varianteEnCours.isEmpty {
                         var totalLigne = "Total \(varianteEnCours) : \(formatQte(totalVariante))"
-                        if afficherPrix, let prix = variantes.first(where: { $0.nom == varianteEnCours })?.prix {
-                            totalLigne += "  —  \(String(format: "%.2f", totalVariante * prix)) €"
+                        if afficherPrix {
+                            totalLigne += "  —  \(String(format: "%.2f", totalMontantVariante)) €"
                         }
                         drawLine(totalLigne, attr: totalAttr, indent: 8)
                         y += 4
@@ -669,15 +679,18 @@ class OrderStore: ObservableObject {
                     }
                     varianteEnCours = cle.variante
                     totalVariante = 0
+                    totalMontantVariante = 0
                     var titre = "▸ \(cle.variante)"
-                    if afficherPrix, let prix = variantes.first(where: { $0.nom == cle.variante })?.prix {
-                        titre += "  —  \(String(format: "%.2f", prix)) €/\(labelUnite)"
+                    if afficherPrix, let v = variantes.first(where: { $0.nom == cle.variante }) {
+                        titre += "  —  \(String(format: "%.2f", v.prix)) €/\(labelUnite)"
                     }
                     drawLine(titre, attr: headerAttr)
                     y += 2
                 }
 
                 totalVariante += totalGroupe
+                let prixEffectif = variantes.first(where: { $0.nom == cle.variante })?.prixPourTaille(cle.taille) ?? 0
+                totalMontantVariante += totalGroupe * prixEffectif
 
                 // Sous-groupe taille/couleur
                 var sousGroupe = ""
@@ -689,14 +702,14 @@ class OrderStore: ObservableObject {
 
                 if !sousGroupe.isEmpty {
                     var ligneGroupe = "\(sousGroupe)  —  \(formatQte(totalGroupe))"
-                    if afficherPrix, let prix = variantes.first(where: { $0.nom == cle.variante })?.prix {
-                        ligneGroupe += "  —  \(String(format: "%.2f", totalGroupe * prix)) €"
+                    if afficherPrix {
+                        ligneGroupe += "  —  \(String(format: "%.2f", totalGroupe * prixEffectif)) €"
                     }
                     drawLine(ligneGroupe, attr: subHeaderAttr, indent: 12)
                 } else {
                     var ligneTotal = "Total : \(formatQte(totalGroupe))"
-                    if afficherPrix, let prix = variantes.first(where: { $0.nom == cle.variante })?.prix {
-                        ligneTotal += "  —  \(String(format: "%.2f", totalGroupe * prix)) €"
+                    if afficherPrix {
+                        ligneTotal += "  —  \(String(format: "%.2f", totalGroupe * prixEffectif)) €"
                     }
                     drawLine(ligneTotal, attr: subHeaderAttr, indent: 12)
                 }
@@ -714,8 +727,8 @@ class OrderStore: ObservableObject {
             // Total de la dernière variante
             if !varianteEnCours.isEmpty {
                 var ligneTotal = "Total \(varianteEnCours) : \(formatQte(totalVariante))"
-                if afficherPrix, let prix = variantes.first(where: { $0.nom == varianteEnCours })?.prix {
-                    ligneTotal += "  —  \(String(format: "%.2f", totalVariante * prix)) €"
+                if afficherPrix {
+                    ligneTotal += "  —  \(String(format: "%.2f", totalMontantVariante)) €"
                 }
                 drawLine(ligneTotal, attr: totalAttr, indent: 8)
                 y += 4
@@ -729,8 +742,9 @@ class OrderStore: ObservableObject {
             for v in variantes {
                 let qte = quantitePourVariante(v.nom)
                 let nb = nombreCommandesPourVariante(v.nom)
+                let totalV = totalPourVariante(v.nom)
                 var ligne = "\(v.nom) : \(formatQte(qte)) — \(nb) client\(nb > 1 ? "s" : "")"
-                if afficherPrix { ligne += " — \(String(format: "%.2f", qte * v.prix)) €" }
+                if afficherPrix { ligne += " — \(String(format: "%.2f", totalV)) €" }
                 drawLine(ligne, attr: bodyAttr, indent: 8)
             }
             var totalLigne = "TOTAL : \(formatQte(totalQuantite))"
@@ -1109,7 +1123,13 @@ class OrderStore: ObservableObject {
     /// Format compact : "2|titre|unite|telVendeur|nom~prix~t1,t2~c1,c2|..." en base64url
     func genererLienWebCommande() -> URL? {
         let parts = variantes.filter { !$0.nom.isEmpty }.map { v in
-            "\(v.nom)~\(v.prix)~\(v.tailles.joined(separator: ","))~\(v.couleurs.joined(separator: ","))"
+            let taillesParts = v.tailles.map { t in
+                if let p = v.prixTailles[t] {
+                    return "\(t):\(p)"
+                }
+                return t
+            }
+            return "\(v.nom)~\(v.prix)~\(taillesParts.joined(separator: ","))~\(v.couleurs.joined(separator: ","))"
         }
         guard !parts.isEmpty else { return nil }
         let payload = "2|\(titreCampagne)|\(uniteQuantite.rawValue)|\(telephoneVendeur)|\(parts.joined(separator: "|"))"

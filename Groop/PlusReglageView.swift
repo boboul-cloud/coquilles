@@ -20,6 +20,7 @@ struct PlusReglageView: View {
     @State private var showExportFormat = false
     @State private var showExportCategoryPicker = false
     @State private var pendingExportSeparer = false
+    @State private var showModeEmploi = false
 
     private let confidentialiteURL = URL(string: "https://boboul-cloud.github.io/groop/confidentialite.html")!
     private let conditionsURL = URL(string: "https://boboul-cloud.github.io/groop/conditions.html")!
@@ -35,6 +36,7 @@ struct PlusReglageView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                modeEmploiSection
                 reglagesSection
                 confidentialiteSection
                 versionSection
@@ -124,6 +126,42 @@ struct PlusReglageView: View {
     }
 
     // MARK: - Réglages
+
+    private var modeEmploiSection: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "book.fill")
+                    .foregroundStyle(.ocean)
+                Text("Aide")
+                    .font(.headline)
+                    .foregroundStyle(.ocean)
+                Spacer()
+            }
+
+            NavigationLink {
+                ModeEmploiView()
+            } label: {
+                HStack {
+                    Image(systemName: "questionmark.circle")
+                    Text("Mode d'emploi")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.ocean.opacity(0.1))
+                .foregroundStyle(.ocean)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    // MARK: - Réglages (import/export/reset)
 
     private var reglagesSection: some View {
         VStack(spacing: 12) {

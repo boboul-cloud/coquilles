@@ -61,9 +61,15 @@ struct CampagneSetupView: View {
                                     Text(variante.nom.isEmpty ? "Sans nom" : variante.nom)
                                         .fontWeight(.medium)
                                         .foregroundStyle(variante.nom.isEmpty ? .secondary : .primary)
-                                    Text(String(format: "%.2f €/%@", variante.prix, store.uniteQuantite.rawValue))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                    if variante.prixTailles.isEmpty {
+                                        Text(String(format: "%.2f €/%@", variante.prix, store.uniteQuantite.rawValue))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text(String(format: "à partir de %.2f €/%@", variante.prixTailles.values.min().map({ min(variante.prix, $0) }) ?? variante.prix, store.uniteQuantite.rawValue))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                                 Spacer()
                                 if !variante.tailles.isEmpty {
@@ -159,6 +165,7 @@ struct VarianteDetailView: View {
     @State private var nouvelleTaille = ""
     @State private var nouvelleCouleur = ""
     @State private var prixText = ""
+    @State private var prixTailleTexts: [String: String] = [:]
 
     var body: some View {
         Form {
@@ -193,9 +200,33 @@ struct VarianteDetailView: View {
                         Image(systemName: "ruler")
                             .foregroundStyle(.oceanLight)
                         Text(taille)
+                        Spacer()
+                        TextField(String(format: "%.2f", variante.prix), text: Binding(
+                            get: { prixTailleTexts[taille] ?? "" },
+                            set: { newValue in
+                                prixTailleTexts[taille] = newValue
+                                let cleaned = newValue.replacingOccurrences(of: ",", with: ".")
+                                if let val = Double(cleaned), val > 0 {
+                                    variante.prixTailles[taille] = val
+                                } else if newValue.isEmpty {
+                                    variante.prixTailles.removeValue(forKey: taille)
+                                }
+                            }
+                        ))
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 70)
+                        .padding(6)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        Text("€")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .onDelete { indices in
+                    let removed = indices.map { variante.tailles[$0] }
+                    for t in removed { variante.prixTailles.removeValue(forKey: t) }
                     variante.tailles.remove(atOffsets: indices)
                 }
 
@@ -217,7 +248,7 @@ struct VarianteDetailView: View {
             } header: {
                 StyledSectionHeader(title: "Tailles", icon: "ruler")
             } footer: {
-                Text("Optionnel. Ajoutez les tailles disponibles pour cette variante.")
+                Text("Optionnel. Ajoutez les tailles disponibles. Vous pouvez définir un prix spécifique par taille ; sinon le prix de la variante s'applique.")
             }
 
             // MARK: - Couleurs
@@ -266,6 +297,9 @@ struct VarianteDetailView: View {
         }
         .onAppear {
             prixText = variante.prix > 0 ? String(format: "%.2f", variante.prix) : ""
+            for (taille, prix) in variante.prixTailles {
+                prixTailleTexts[taille] = String(format: "%.2f", prix)
+            }
         }
     }
 }

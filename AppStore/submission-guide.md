@@ -8,7 +8,7 @@
 - [ ] **Version** : 1.0
 - [ ] **Build** : 1
 - [ ] **Deployment Target** : iOS 17.0 (minimum recommandé pour les API SwiftUI utilisées)
-- [ ] **Device** : iPhone uniquement
+- [ ] **Device** : iPhone + iPad
 - [ ] **Icône d'app** : placer une icône 1024×1024 dans `Assets.xcassets/AppIcon`
 - [ ] **Launch Screen** : configuré (storyboard ou SwiftUI)
 - [ ] **Archive** : Product → Archive, puis Distribute App → App Store Connect

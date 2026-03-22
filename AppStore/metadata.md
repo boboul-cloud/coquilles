@@ -1,14 +1,14 @@
-# Groop — Métadonnées App Store
+# Groop -- Metadonnees App Store
 
-## Informations générales
+## Informations generales
 
 - **Nom de l'app** : Groop
-- **Sous-titre** : Commandes groupées faciles
-- **Catégorie principale** : Utilitaires
-- **Catégorie secondaire** : Économie et entreprise
-- **Évaluation du contenu** : 4+ (aucun contenu répréhensible)
+- **Sous-titre** : Commandes groupees faciles
+- **Categorie principale** : Utilitaires
+- **Categorie secondaire** : Economie et entreprise
+- **Evaluation du contenu** : 4+ (aucun contenu reprehensible)
 - **Prix** : Gratuit
-- **Copyright** : © 2026 Robert Oulhen
+- **Copyright** : 2026 Robert Oulhen
 
 ---
 
@@ -23,76 +23,76 @@
 
 ---
 
-## Description (max 4 000 caractères)
+## Description (max 4 000 caracteres)
 
-Groop simplifie la gestion de vos campagnes de commandes groupées. Que vous organisiez un achat groupé de coquilles Saint-Jacques, d'huîtres ou de tout autre produit, cette application vous accompagne de la prise de commande jusqu'à la livraison.
+Groop simplifie la gestion de vos campagnes de commandes groupees. Que vous organisiez un achat groupe de coquilles Saint-Jacques, d'huitres ou de tout autre produit, cette application vous accompagne de la prise de commande jusqu'a la livraison.
 
-**📋 Gestion des commandes**
-• Ajoutez vos clients et leurs commandes en quelques secondes
-• Gérez plusieurs produits (variantes) avec prix, tailles et couleurs
-• Suivez chaque commande : commandée, payée, livrée
-• Filtrez et recherchez parmi vos commandes
-• Organisez vos clients par catégorie (famille, voisins, collègues…)
+GESTION DES COMMANDES
+- Ajoutez vos clients et leurs commandes en quelques secondes
+- Gerez plusieurs produits (variantes) avec prix, tailles et couleurs
+- Suivez chaque commande : commandee, payee, livree
+- Filtrez et recherchez parmi vos commandes
+- Organisez vos clients par categorie (famille, voisins, collegues...)
 
-**💰 Suivi des paiements**
-• Enregistrez les règlements par chèque ou espèces
-• Visualisez en un coup d'œil qui a payé et combien il reste à encaisser
-• Alertes automatiques pour les impayés
+SUIVI DES PAIEMENTS
+- Enregistrez les reglements par cheque ou especes
+- Visualisez en un coup d'oeil qui a paye et combien il reste a encaisser
+- Alertes automatiques pour les impayes
 
-**📊 Tableau de bord**
-• Vue d'ensemble avec quantités totales, montants et participants
-• Détail par variante de produit
-• Indicateurs de livraison et d'encaissement
+TABLEAU DE BORD
+- Vue d'ensemble avec quantites totales, montants et participants
+- Detail par variante de produit
+- Indicateurs de livraison et d'encaissement
 
-**📄 Exports PDF professionnels**
-• Récapitulatif complet de la campagne
-• Bon de commande fournisseur (3 formats)
-• Fiche de distribution avec cases à cocher
+EXPORTS PDF PROFESSIONNELS
+- Recapitulatif complet de la campagne
+- Bon de commande fournisseur (3 formats)
+- Fiche de distribution avec cases a cocher
 
-**🌐 Page web de commande**
-• Générez un lien web unique pour votre campagne
-• Vos clients commandent depuis leur navigateur
-• La commande vous arrive par SMS — aucun serveur nécessaire
+PAGE WEB DE COMMANDE
+- Generez un lien web unique pour votre campagne
+- Vos clients commandent depuis leur navigateur
+- La commande vous arrive par SMS, aucun serveur necessaire
 
-**💬 Messages groupés**
-• Envoyez des SMS à tous vos clients ou à une sélection
-• Générez automatiquement un message d'invitation
-• Notifiez l'arrivée de la commande
+MESSAGES GROUPES
+- Envoyez des SMS a tous vos clients ou a une selection
+- Generez automatiquement un message d'invitation
+- Notifiez l'arrivee de la commande
 
-**💾 Sauvegarde et restauration**
-• Sauvegardez vos campagnes au format JSON
-• Restaurez ou transférez une campagne entre appareils
-• Importez une liste de clients depuis un fichier
+SAUVEGARDE ET RESTAURATION
+- Sauvegardez vos campagnes au format JSON
+- Restaurez ou transferez une campagne entre appareils
+- Importez une liste de clients depuis un fichier
 
-**🔒 100 % privé**
-Toutes vos données restent sur votre iPhone. Aucune donnée n'est envoyée sur internet. Aucun compte requis.
-
----
-
-## Texte promotionnel (max 170 caractères)
-
-Gérez vos achats groupés de A à Z : commandes, paiements, exports PDF et page web de commande. 100 % hors ligne et privé. 🐚
+100 % PRIVE
+Toutes vos donnees restent sur votre appareil. Aucune donnee n'est envoyee sur internet. Aucun compte requis.
 
 ---
 
-## Mots-clés (max 100 caractères, séparés par des virgules)
+## Texte promotionnel (max 170 caracteres)
 
-commandes,groupées,achat,groupé,groop,huîtres,paiement,suivi,PDF,gestion
+Gerez vos achats groupes de A a Z : commandes, paiements, exports PDF et page web. Sur iPhone et iPad. 100 % prive.
+
+---
+
+## Mots-cles (max 100 caracteres, separes par des virgules)
+
+commandes,groupees,achat,groupe,groop,huitres,paiement,suivi,PDF,gestion
 
 ---
 
 ## Quoi de neuf (version 1.0)
 
-Première version de Groop ! 📦
+Premiere version de Groop !
 
-• Gestion complète des commandes groupées
-• Suivi des paiements (chèques et espèces)
-• Tableau de bord avec statistiques
-• Export PDF : récapitulatif, bon de commande, fiche de distribution
-• Page web de commande partageable par lien
-• Messages SMS groupés
-• Sauvegarde et restauration de campagnes
-• Interface intuitive avec thème marin
+- Gestion complete des commandes groupees
+- Suivi des paiements (cheques et especes)
+- Tableau de bord avec statistiques
+- Export PDF : recapitulatif, bon de commande, fiche de distribution
+- Page web de commande partageable par lien
+- Messages SMS groupes
+- Sauvegarde et restauration de campagnes
+- Interface intuitive avec theme marin
 
 ---
 

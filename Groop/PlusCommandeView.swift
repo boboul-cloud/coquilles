@@ -56,7 +56,13 @@ struct PlusCommandeView: View {
             lignes.append("")
             lignes.append("▸ \(variante.nom) — \(prix)")
             if !variante.tailles.isEmpty {
-                lignes.append("   Tailles : \(variante.tailles.joined(separator: ", "))")
+                let taillesInfo = variante.tailles.map { t in
+                    if let p = variante.prixTailles[t] {
+                        return "\(t) (\(String(format: "%.2f", p)) €)"
+                    }
+                    return t
+                }
+                lignes.append("   Tailles : \(taillesInfo.joined(separator: ", "))")
             }
             if !variante.couleurs.isEmpty {
                 lignes.append("   Couleurs : \(variante.couleurs.joined(separator: ", "))")
