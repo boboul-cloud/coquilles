@@ -255,9 +255,13 @@ input:focus{outline:none;border-color:var(--ocean)}
             html += '<span class="size-price"></span>';
           }
           if (v.co && v.co.length) {
-            html += '<select id="color_'+si+'" onchange="selColorLine('+si+')" style="font-size:.8em;border-radius:8px;border:1px solid #ddd;padding:4px;max-width:80px">';
+            html += '<select id="color_'+si+'" onchange="selColorLine('+si+')" style="font-size:.8em;border-radius:8px;border:1px solid #ddd;padding:4px;max-width:100px">';
             html += '<option value="">Couleur</option>';
-            v.co.forEach(function(cl){ html += '<option value="'+esc(cl)+'">'+esc(cl)+'</option>'; });
+            v.co.forEach(function(cl){
+              var lbl = cl;
+              if (v.cp && v.cp[cl] !== undefined) lbl += ' ('+v.cp[cl].toFixed(2)+'€)';
+              html += '<option value="'+esc(cl)+'">'+esc(lbl)+'</option>';
+            });
             html += '</select>';
           }
           html += '<div class="qty-row" style="margin:0;flex:1;justify-content:flex-end">';
@@ -271,7 +275,11 @@ input:focus{outline:none;border-color:var(--ocean)}
         if (v.co && v.co.length) {
           var si0 = stateIndexFor(i, null);
           html += '<div class="attr-label">Couleur</div><div class="options">';
-          v.co.forEach(function(cl){ html += '<div class="chip" onclick="selCouleur('+si0+',this,\''+esc(cl)+'\')">'+esc(cl)+'</div>'; });
+          v.co.forEach(function(cl){
+            var lbl = cl;
+            if (v.cp && v.cp[cl] !== undefined) lbl += ' ('+v.cp[cl].toFixed(2)+'€)';
+            html += '<div class="chip" onclick="selCouleur('+si0+',this,\''+esc(cl)+'\')">' +esc(lbl)+'</div>';
+          });
           html += '</div>';
         }
         var si1 = stateIndexFor(i, null);
