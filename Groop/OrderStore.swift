@@ -1410,7 +1410,7 @@ class OrderStore: ObservableObject {
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
-        return URL(string: pagesBaseURL + "#" + encoded)
+        return URL(string: pagesBaseURL + "?d=" + encoded)
     }
 
     private func escaperJS(_ s: String) -> String {
