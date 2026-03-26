@@ -386,7 +386,7 @@ input:focus{outline:none;border-color:var(--ocean)}
   document.getElementById("nom").addEventListener("input", update);
   document.getElementById("tel").addEventListener("input", update);
 
-  window.soumettre = async function(){
+  window.soumettre = function(){
     var nom = document.getElementById("nom").value.trim();
     var tel = document.getElementById("tel").value.trim();
     var lignes = [];
@@ -399,31 +399,21 @@ input:focus{outline:none;border-color:var(--ocean)}
       }
     });
 
-    // Format compact : nom|tel|var;qty;taille;couleur,...
+    // Format compact : "c" + base64url(nom|tel|var;qty;taille;couleur,...)
     var compactLines = lignes.map(function(l){
       return (l.v||'') + ';' + l.q + ';' + (l.t||'') + ';' + (l.c||'');
     }).join(',');
     var compactData = nom + '|' + tel + '|' + compactLines;
-
-    // Compresser avec deflate-raw puis base64url, préfixe "z"
-    var inputBytes = new TextEncoder().encode(compactData);
-    var cs = new CompressionStream('deflate-raw');
-    var writer = cs.writable.getWriter();
-    writer.write(inputBytes);
-    writer.close();
-    var compressedBuf = await new Response(cs.readable).arrayBuffer();
-    var compressedBytes = new Uint8Array(compressedBuf);
-    var binStr = '';
-    for (var i = 0; i < compressedBytes.length; i++) binStr += String.fromCharCode(compressedBytes[i]);
-    var compactB64 = btoa(binStr).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-    var deepUrl = "groop://order?d=z" + compactB64;
+    var compactB64 = btoa(unescape(encodeURIComponent(compactData)))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    var deepUrl = "groop://order?d=c" + compactB64;
 
     // Récap texte pour le SMS (court pour rester sous la limite iOS)
     var nbLignes = lignes.length;
-    var smsBody = "Commande " + nom + (tel ? " ("+tel+")" : "") + " (" + nbLignes + " article" + (nbLignes > 1 ? "s" : "") + ")\n" + deepUrl;
-    // Si le SMS dépasse ~900 car., supprimer le récap et garder uniquement le lien
-    if (smsBody.length > 900) {
-      smsBody = "Commande " + nom + "\n" + deepUrl;
+    var smsBody = "Commande " + nom + " (" + nbLignes + " art.)\n" + deepUrl;
+    // Si trop long, garder uniquement le lien
+    if (smsBody.length > 600) {
+      smsBody = deepUrl;
     }
     var smsHref = "sms:" + (TEL_VENDEUR||'') + "?body=" + encodeURIComponent(smsBody);
 
