@@ -85,8 +85,9 @@ input:focus{outline:none;border-color:var(--ocean)}
 
 <script>
 (function(){
-  // Lire les données de la campagne depuis le hash de l'URL
-  var hash = window.location.hash.substring(1);
+  // Lire les données depuis ?d= (prioritaire) ou # (rétrocompatible)
+  var params = new URLSearchParams(window.location.search);
+  var hash = params.get('d') || window.location.hash.substring(1);
   if (!hash) {
     document.getElementById("errorSection").innerHTML =
       '<div class="card error"><h2>&#x26A0;&#xFE0F; Lien invalide</h2><p>Ce lien ne contient pas de donn&eacute;es de campagne. Demandez un nouveau lien au vendeur.</p></div>';
