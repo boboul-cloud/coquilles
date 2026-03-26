@@ -248,7 +248,7 @@ input:focus{outline:none;border-color:var(--ocean)}
     var html = "";
     VARIANTES.forEach(function(v, i){
       html += '<div class="variante" id="var_'+i+'">';
-      html += '<div class="var-header"><span class="var-name">'+esc(v.n)+'</span></div>';
+      html += '<div class="var-header"><span class="var-name">'+esc(v.n)+'</span><span class="var-price" id="vartotal_'+i+'"></span></div>';
 
       if (v.ta && v.ta.length) {
         // Une ligne quantité par taille
@@ -366,9 +366,25 @@ input:focus{outline:none;border-color:var(--ocean)}
         recapH += '<div class="recap-line"><span>'+esc(desc)+' &times; '+fmtQte(q)+'</span><span>'+st.toFixed(2)+' &euro;</span></div>';
       }
     });
+    // Sous-totaux par variante
+    var varTotals = {};
+    state.forEach(function(s){
+      if (s.quantite > 0) {
+        var idx = s.varIdx;
+        if (!varTotals[idx]) varTotals[idx] = 0;
+        varTotals[idx] += prixPourLigne(state.indexOf(s)) * s.quantite;
+      }
+    });
     VARIANTES.forEach(function(v, i){
       var el = document.getElementById("var_"+i);
-      if (varActive[i]) { el.classList.add("active"); } else { el.classList.remove("active"); }
+      var vtEl = document.getElementById("vartotal_"+i);
+      if (varActive[i]) {
+        el.classList.add("active");
+        vtEl.textContent = (varTotals[i]||0).toFixed(2) + ' \u20ac';
+      } else {
+        el.classList.remove("active");
+        vtEl.textContent = '';
+      }
     });
     var rc = document.getElementById("recapCard");
     if(any){
