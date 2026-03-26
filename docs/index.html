@@ -259,11 +259,17 @@ input:focus{outline:none;border-color:var(--ocean)}
             html += '<select id="color_'+si+'" onchange="selColorLine('+si+')" style="font-size:.8em;border-radius:8px;border:1px solid #ddd;padding:4px;max-width:100px">';
             html += '<option value="">Couleur</option>';
             v.co.forEach(function(cl){
-              // Si combinaisons définies, ne montrer que les couleurs valides pour cette taille
-              if (aXp && !(v.xp[t+'+'+cl] !== undefined)) return;
-              var lbl = cl;
-              if (v.cp && v.cp[cl] !== undefined) lbl += ' ('+v.cp[cl].toFixed(2)+'€)';
-              html += '<option value="'+esc(cl)+'">'+esc(lbl)+'</option>';
+              if (aXp) {
+                // Ne montrer que les combinaisons valides (existantes et prix > 0)
+                var comboKey = t+'+'+cl;
+                if (v.xp[comboKey] === undefined || v.xp[comboKey] <= 0) return;
+                var lbl = cl + ' ('+v.xp[comboKey].toFixed(2)+'€)';
+                html += '<option value="'+esc(cl)+'">'+esc(lbl)+'</option>';
+              } else {
+                var lbl = cl;
+                if (v.cp && v.cp[cl] !== undefined) lbl += ' ('+v.cp[cl].toFixed(2)+'€)';
+                html += '<option value="'+esc(cl)+'">'+esc(lbl)+'</option>';
+              }
             });
             html += '</select>';
           }
