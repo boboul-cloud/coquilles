@@ -66,7 +66,9 @@ struct CampagneSetupView: View {
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     } else {
-                                        Text(String(format: "à partir de %.2f €/%@", variante.prixTailles.values.min().map({ min(variante.prix, $0) }) ?? variante.prix, store.uniteQuantite.rawValue))
+                                        let minPrixTaille = variante.prixTailles.values.min() ?? 0
+                                        let prixAffiche = variante.prix > 0 ? min(variante.prix, minPrixTaille) : minPrixTaille
+                                        Text(String(format: "à partir de %.2f €/%@", prixAffiche, store.uniteQuantite.rawValue))
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }

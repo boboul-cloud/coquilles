@@ -7,6 +7,7 @@
 
 import SwiftUI
 import QuickLook
+import UniformTypeIdentifiers
 
 struct PlusExportationView: View {
     @ObservedObject var store: OrderStore
@@ -17,6 +18,13 @@ struct PlusExportationView: View {
     @State private var showExportFeedback = false
     @State private var showConfirmFinie = false
     @State private var showProUpgrade = false
+    @State private var showImportClients = false
+    @State private var importClientsCount = 0
+    @State private var showImportClientsFeedback = false
+    @State private var exportClientsShareItem: IdentifiableURL? = nil
+    @State private var showExportFormat = false
+    @State private var showExportCategoryPicker = false
+    @State private var pendingExportSeparer = false
 
     var body: some View {
         ScrollView {
@@ -26,6 +34,7 @@ struct PlusExportationView: View {
                 }
                 finalisationSection
                 exportSection
+                importExportSection
                 bonCommandeSection
                 distributionSection
             }
@@ -48,6 +57,74 @@ struct PlusExportationView: View {
         }
         .sheet(isPresented: $showProUpgrade) {
             GroopProView(storeManager: storeManager)
+        }
+        .fileImporter(isPresented: $showImportClients, allowedContentTypes: [.plainText, .commaSeparatedText]) { result in
+            switch result {
+            case .success(let url):
+                let accessing = url.startAccessingSecurityScopedResource()
+                defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+                importClientsCount = store.importerClientsDepuisFichier(url: url)
+                if importClientsCount > 0 {
+                    showImportClientsFeedback = true
+                }
+            case .failure:
+                break
+            }
+        }
+        .alert("\(importClientsCount) client\(importClientsCount > 1 ? "s" : "") importé\(importClientsCount > 1 ? "s" : "") ✓", isPresented: $showImportClientsFeedback) {
+            Button("OK") {}
+        }
+        .sheet(item: $exportClientsShareItem) { item in
+            ShareSheet(activityItems: [item.url])
+        }
+        .confirmationDialog("Format d'export", isPresented: $showExportFormat, titleVisibility: .visible) {
+            Button("Nom ; Téléphone ; Catégorie") {
+                pendingExportSeparer = false
+                if store.categories.count > 1 {
+                    showExportCategoryPicker = true
+                } else {
+                    if let url = store.exporterClientsFichier(separerNomPrenom: false) {
+                        exportClientsShareItem = IdentifiableURL(url: url)
+                    }
+                }
+            }
+            Button("Prénom ; Nom ; Téléphone (Temps de Jeu)") {
+                pendingExportSeparer = true
+                if store.categories.count > 1 {
+                    showExportCategoryPicker = true
+                } else {
+                    let catID = store.categories.first?.id
+                    if let url = store.exporterClientsFichier(separerNomPrenom: true, categorieID: catID) {
+                        exportClientsShareItem = IdentifiableURL(url: url)
+                    }
+                }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Choisissez le format selon l'application de destination.")
+        }
+        .confirmationDialog("Quelle catégorie exporter ?", isPresented: $showExportCategoryPicker, titleVisibility: .visible) {
+            Button("Toutes les catégories") {
+                if pendingExportSeparer {
+                    if let url = store.exporterClientsFichier(separerNomPrenom: true) {
+                        exportClientsShareItem = IdentifiableURL(url: url)
+                    }
+                } else {
+                    if let url = store.exporterClientsFichier(separerNomPrenom: false) {
+                        exportClientsShareItem = IdentifiableURL(url: url)
+                    }
+                }
+            }
+            ForEach(store.categories) { cat in
+                Button(cat.nom) {
+                    if let url = store.exporterClientsFichier(separerNomPrenom: pendingExportSeparer, categorieID: cat.id) {
+                        exportClientsShareItem = IdentifiableURL(url: url)
+                    }
+                }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Choisissez la catégorie à exporter ou exportez tout.")
         }
     }
 
@@ -147,7 +224,7 @@ struct PlusExportationView: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.ocean.opacity(0.1))
-                .foregroundStyle(.ocean)
+                .foregroundStyle(.oceanText)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
 
@@ -174,6 +251,91 @@ struct PlusExportationView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .disabled(!storeManager.proUnlocked)
         .opacity(storeManager.proUnlocked ? 1 : 0.5)
+    }
+
+    // MARK: - Import/Export clients
+
+    private var importExportSection: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "person.2.fill")
+                    .foregroundStyle(.ocean)
+                Text("Import/Export")
+                    .font(.headline)
+                    .foregroundStyle(.ocean)
+                Spacer()
+                if !storeManager.proUnlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            Text("Temps de jeu")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                showImportClients = true
+            } label: {
+                HStack {
+                    Image(systemName: "person.crop.circle.badge.plus")
+                    Text("Importer une liste de clients")
+                        .fontWeight(.medium)
+                    Spacer()
+                    if !storeManager.proUnlocked {
+                        Image(systemName: "lock.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.ocean.opacity(0.1))
+                .foregroundStyle(.oceanText)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .disabled(!storeManager.proUnlocked)
+            .opacity(storeManager.proUnlocked ? 1 : 0.5)
+
+            Button {
+                showExportFormat = true
+            } label: {
+                HStack {
+                    Image(systemName: "person.crop.circle.badge.arrow.right")
+                    Text("Exporter la liste de clients")
+                        .fontWeight(.medium)
+                    Spacer()
+                    if !storeManager.proUnlocked {
+                        Image(systemName: "lock.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else {
+                        Text("\(store.orders.filter { !$0.nomComplet.isEmpty }.count)")
+                            .font(.caption)
+                            .foregroundStyle(.oceanText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.ocean.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.ocean.opacity(0.1))
+                .foregroundStyle(.oceanText)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .disabled(!storeManager.proUnlocked || store.orders.isEmpty)
+            .opacity(storeManager.proUnlocked ? 1 : 0.5)
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
     // MARK: - Bon de commande
@@ -317,7 +479,7 @@ struct BonCommandeButton: View {
             .frame(maxWidth: .infinity)
             .padding()
             .background(style == .filled ? AnyShapeStyle(LinearGradient.seaGradient) : AnyShapeStyle(Color.ocean.opacity(0.1)))
-            .foregroundStyle(style == .filled ? .white : .ocean)
+            .foregroundStyle(style == .filled ? .white : .oceanText)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }

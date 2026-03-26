@@ -9,6 +9,8 @@ import Foundation
 import Combine
 import SwiftUI
 import UIKit
+import Vision
+import PDFKit
 
 /// Snapshot complet d'une campagne, exportable en JSON.
 struct CampagneData: Codable {
@@ -20,6 +22,21 @@ struct CampagneData: Codable {
     var telephoneVendeur: String?
 }
 
+/// Backup multi-campagne : campagne active + toutes les campagnes sauvegardées.
+struct MultiCampagneBackup: Codable {
+    var dateBackup: Date
+    var campagneActive: CampagneData
+    var campagnesSauvegardees: [String: CampagneData]
+}
+
+/// Info résumée d'un backup stocké localement.
+struct BackupInfo: Identifiable {
+    var id: String { nomFichier }
+    var nomFichier: String
+    var date: Date
+    var dateFormatee: String
+}
+
 class OrderStore: ObservableObject {
     @Published var orders: [Order] = []
     @Published var titreCampagne: String = "Groop"
@@ -27,6 +44,7 @@ class OrderStore: ObservableObject {
     @Published var variantes: [Variante] = []
     @Published var categories: [CategorieClient] = []
     @Published var campagnesSauvegardees: [String] = []
+    @Published var backups: [BackupInfo] = []
     @Published var telephoneVendeur: String = ""
 
     private let ordersKey = "savedOrders"
@@ -38,6 +56,7 @@ class OrderStore: ObservableObject {
 
     init() {
         load()
+        rafraichirListeBackups()
     }
 
     // MARK: - Helpers
@@ -108,31 +127,25 @@ class OrderStore: ObservableObject {
     }
 
     var totalCheque: Double {
-        orders.filter(\.estValide)
-            .flatMap(\.reglements)
-            .filter { $0.modePaiement == .cheque }
-            .map(\.montant)
-            .reduce(0, +)
+        let validOrders = orders.filter(\.estValide)
+        let cheques = validOrders.flatMap(\.reglements).filter { $0.modePaiement == .cheque }
+        return cheques.map(\.montant).reduce(0, +)
     }
 
     var nombreCheques: Int {
-        orders.filter(\.estValide)
-            .flatMap(\.reglements)
-            .filter { $0.modePaiement == .cheque }.count
+        let validOrders = orders.filter(\.estValide)
+        return validOrders.flatMap(\.reglements).filter { $0.modePaiement == .cheque }.count
     }
 
     var totalEspeces: Double {
-        orders.filter(\.estValide)
-            .flatMap(\.reglements)
-            .filter { $0.modePaiement == .especes }
-            .map(\.montant)
-            .reduce(0, +)
+        let validOrders = orders.filter(\.estValide)
+        let especes = validOrders.flatMap(\.reglements).filter { $0.modePaiement == .especes }
+        return especes.map(\.montant).reduce(0, +)
     }
 
     var nombreEspeces: Int {
-        orders.filter(\.estValide)
-            .flatMap(\.reglements)
-            .filter { $0.modePaiement == .especes }.count
+        let validOrders = orders.filter(\.estValide)
+        return validOrders.flatMap(\.reglements).filter { $0.modePaiement == .especes }.count
     }
 
     // MARK: - Impayés (livré mais pas entièrement réglé)
@@ -790,7 +803,7 @@ class OrderStore: ObservableObject {
         var lignesCSV: [String] = []
         lignesCSV.append(["Variante", "Taille", "Couleur", "Client", "Quantité", "Prix unitaire", "Total"].joined(separator: sep))
 
-        for order in orders where order.estValide {
+        for order in orders where !order.nomComplet.isEmpty && !order.lignes.isEmpty {
             for ligne in order.lignes where !ligne.variante.isEmpty && ligne.quantite > 0 {
                 let v = variantes.first(where: { $0.nom == ligne.variante })
                 let pu = v?.prixPourTaille(ligne.taille) ?? 0
@@ -830,6 +843,77 @@ class OrderStore: ObservableObject {
             return "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\""
         }
         return s
+    }
+
+    // MARK: - Export CSV campagne (variantes/tailles/prix)
+
+    func exporterCampagneCSV() -> URL? {
+        let sep = ";"
+        var lignesCSV: [String] = []
+        lignesCSV.append(["Variante", "Taille", "Couleur", "Prix"].joined(separator: sep))
+
+        for v in variantes where !v.nom.isEmpty {
+            if v.tailles.isEmpty && v.couleurs.isEmpty {
+                let row = [
+                    csvEscape(v.nom),
+                    "",
+                    "",
+                    String(format: "%.2f", v.prix).replacingOccurrences(of: ".", with: ",")
+                ]
+                lignesCSV.append(row.joined(separator: sep))
+            } else if v.couleurs.isEmpty {
+                for t in v.tailles {
+                    let p = v.prixPourTaille(t)
+                    let row = [
+                        csvEscape(v.nom),
+                        csvEscape(t),
+                        "",
+                        String(format: "%.2f", p).replacingOccurrences(of: ".", with: ",")
+                    ]
+                    lignesCSV.append(row.joined(separator: sep))
+                }
+            } else if v.tailles.isEmpty {
+                for c in v.couleurs {
+                    let row = [
+                        csvEscape(v.nom),
+                        "",
+                        csvEscape(c),
+                        String(format: "%.2f", v.prix).replacingOccurrences(of: ".", with: ",")
+                    ]
+                    lignesCSV.append(row.joined(separator: sep))
+                }
+            } else {
+                for t in v.tailles {
+                    for c in v.couleurs {
+                        let p = v.prixPourTaille(t)
+                        let row = [
+                            csvEscape(v.nom),
+                            csvEscape(t),
+                            csvEscape(c),
+                            String(format: "%.2f", p).replacingOccurrences(of: ".", with: ",")
+                        ]
+                        lignesCSV.append(row.joined(separator: sep))
+                    }
+                }
+            }
+        }
+
+        guard lignesCSV.count > 1 else { return nil }
+
+        let contenu = lignesCSV.joined(separator: "\n")
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        let sanitized = titreCampagne.replacingOccurrences(of: " ", with: "_")
+        let nomFichier = "Campagne_\(sanitized)_\(df.string(from: Date())).csv"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(nomFichier)
+        do {
+            var data = Data([0xEF, 0xBB, 0xBF])
+            data.append(contenu.data(using: .utf8)!)
+            try data.write(to: url)
+            return url
+        } catch {
+            return nil
+        }
     }
 
     // MARK: - PDF de distribution (par catégorie / client)
@@ -1000,6 +1084,120 @@ class OrderStore: ObservableObject {
             .appendingPathComponent("Campagnes", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
+    }
+
+    /// Sauvegarde complète : campagne active + toutes les campagnes sauvegardées.
+    func sauvegarderToutesCampagnes() -> URL? {
+        let active = CampagneData(
+            titreCampagne: titreCampagne,
+            uniteQuantite: uniteQuantite,
+            variantes: variantes,
+            categories: categories,
+            orders: orders,
+            telephoneVendeur: telephoneVendeur
+        )
+        var sauvegardees: [String: CampagneData] = [:]
+        let fm = FileManager.default
+        let dir = campagnesDirectory
+        let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        for file in files where file.pathExtension == "json" {
+            if let data = try? Data(contentsOf: file),
+               let campagne = try? decoder.decode(CampagneData.self, from: data),
+               let nom = file.deletingPathExtension().lastPathComponent.removingPercentEncoding {
+                sauvegardees[nom] = campagne
+            }
+        }
+        let backup = MultiCampagneBackup(
+            dateBackup: Date(),
+            campagneActive: active,
+            campagnesSauvegardees: sauvegardees
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        guard let jsonData = try? encoder.encode(backup) else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let dateStr = formatter.string(from: Date())
+        let url = backupsDirectory.appendingPathComponent("Backup-\(dateStr).json")
+        do {
+            try jsonData.write(to: url, options: .atomic)
+            rafraichirListeBackups()
+            return url
+        } catch {
+            return nil
+        }
+    }
+
+    // MARK: - Backups locaux
+
+    private var backupsDirectory: URL {
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Backups", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    func rafraichirListeBackups() {
+        let fm = FileManager.default
+        let dir = backupsDirectory
+        let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let displayFormatter = DateFormatter()
+        displayFormatter.dateStyle = .medium
+        displayFormatter.timeStyle = .short
+        backups = files
+            .filter { $0.pathExtension == "json" }
+            .compactMap { url -> BackupInfo? in
+                let nom = url.deletingPathExtension().lastPathComponent
+                let dateStr = nom.replacingOccurrences(of: "Backup-", with: "")
+                let date = formatter.date(from: dateStr) ?? (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date.distantPast
+                return BackupInfo(nomFichier: nom, date: date, dateFormatee: displayFormatter.string(from: date))
+            }
+            .sorted { $0.date > $1.date }
+    }
+
+    func restaurerBackup(info: BackupInfo) -> Int {
+        let url = backupsDirectory.appendingPathComponent("\(info.nomFichier).json")
+        return restaurerToutesCampagnes(depuis: url)
+    }
+
+    func supprimerBackup(info: BackupInfo) {
+        let url = backupsDirectory.appendingPathComponent("\(info.nomFichier).json")
+        try? FileManager.default.removeItem(at: url)
+        rafraichirListeBackups()
+    }
+
+    /// Restaure un backup multi-campagne : écrase la campagne active et toutes les sauvegardes.
+    func restaurerToutesCampagnes(depuis url: URL) -> Int {
+        guard let jsonData = try? Data(contentsOf: url) else { return 0 }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let backup = try? decoder.decode(MultiCampagneBackup.self, from: jsonData) else { return 0 }
+        // Restaurer la campagne active
+        titreCampagne = backup.campagneActive.titreCampagne
+        uniteQuantite = backup.campagneActive.uniteQuantite
+        variantes = backup.campagneActive.variantes
+        categories = backup.campagneActive.categories
+        orders = backup.campagneActive.orders
+        telephoneVendeur = backup.campagneActive.telephoneVendeur ?? ""
+        save()
+        // Restaurer les campagnes sauvegardées
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        for (nom, campagne) in backup.campagnesSauvegardees {
+            if let data = try? encoder.encode(campagne) {
+                let sanitized = nom.replacingOccurrences(of: "/", with: "-")
+                let fileURL = campagnesDirectory.appendingPathComponent("\(sanitized).json")
+                try? data.write(to: fileURL, options: .atomic)
+            }
+        }
+        rafraichirListeCampagnes()
+        return max(1, backup.campagnesSauvegardees.count)
     }
 
     func rafraichirListeCampagnes() {
@@ -1229,6 +1427,959 @@ class OrderStore: ObservableObject {
             return "0" + digits.dropFirst(2)
         }
         return digits
+    }
+
+    // MARK: - Import commandes depuis fichier CSV/TXT
+
+    /// Résultat de l'import de commandes.
+    struct ImportCommandesResult {
+        var commandesCreees: Int = 0
+        var lignesAjoutees: Int = 0
+        var variantesCrees: Int = 0
+        var prixImportes: Int = 0
+        var erreurs: [String] = []
+        var diagnosticIA: String = ""
+    }
+
+    /// Importe des commandes depuis un fichier CSV/TXT.
+    /// Détecte automatiquement les colonnes via la ligne d'en-tête.
+    /// Colonnes reconnues : Client/Nom/Prénom, Téléphone/Tel, Variante/Produit, Taille, Couleur, Quantité/Qté, Catégorie.
+    /// Les lignes du même client sont regroupées dans une seule commande.
+    /// Retourne un résumé de l'import.
+    func importerCommandesDepuisFichier(url: URL) -> ImportCommandesResult {
+        var result = ImportCommandesResult()
+        guard let contenu = try? String(contentsOf: url, encoding: .utf8) else {
+            // Tenter latin1 comme fallback
+            guard let contenu = try? String(contentsOf: url, encoding: .isoLatin1) else {
+                result.erreurs.append("Impossible de lire le fichier.")
+                return result
+            }
+            return parseCommandesCSV(contenu)
+        }
+        return parseCommandesCSV(contenu)
+    }
+
+    private func parseCommandesCSV(_ contenu: String) -> ImportCommandesResult {
+        var result = ImportCommandesResult()
+
+        // Supprimer le BOM UTF-8 si présent
+        let clean = contenu.hasPrefix("\u{FEFF}") ? String(contenu.dropFirst()) : contenu
+
+        let lignes = clean.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+
+        guard !lignes.isEmpty else {
+            result.erreurs.append("Le fichier est vide ou ne contient aucune ligne exploitable.")
+            return result
+        }
+
+        // Détecter le séparateur (tab, ;, ,, espaces multiples)
+        let sep: String
+        let premiereLigne = lignes[0]
+        let tabCount = premiereLigne.components(separatedBy: "\t").count
+        let semiCount = premiereLigne.components(separatedBy: ";").count
+        // Ne compter que les vraies virgules séparateurs (pas les virgules décimales entre chiffres)
+        func countRealCommas(_ line: String) -> Int {
+            let chars = Array(line)
+            var count = 0
+            for (i, c) in chars.enumerated() where c == "," {
+                let prevIsDigit = i > 0 && chars[i-1].isNumber
+                let nextIsDigit = i < chars.count - 1 && chars[i+1].isNumber
+                if !(prevIsDigit && nextIsDigit) {
+                    count += 1
+                }
+            }
+            return count + 1 // +1 pour le nombre de colonnes
+        }
+        let commaCount = countRealCommas(premiereLigne)
+        // Vérifier aussi sur les lignes de données si l'en-tête est court
+        let dataTabCount = lignes.count > 1 ? lignes[1].components(separatedBy: "\t").count : 1
+        let effectiveTabCount = max(tabCount, dataTabCount)
+        // Compter les colonnes si on sépare par 2+ espaces consécutifs
+        let multiSpaceRegex = try? NSRegularExpression(pattern: "\\s{2,}")
+        let multiSpaceCount = (multiSpaceRegex?.numberOfMatches(in: premiereLigne, range: NSRange(premiereLigne.startIndex..., in: premiereLigne)) ?? 0) + 1
+        let dataMultiSpaceCount: Int
+        if lignes.count > 1 {
+            dataMultiSpaceCount = (multiSpaceRegex?.numberOfMatches(in: lignes[1], range: NSRange(lignes[1].startIndex..., in: lignes[1])) ?? 0) + 1
+        } else {
+            dataMultiSpaceCount = 1
+        }
+        let effectiveMultiSpaceCount = max(multiSpaceCount, dataMultiSpaceCount)
+
+        if effectiveTabCount > 1 && effectiveTabCount >= semiCount && effectiveTabCount >= commaCount && effectiveTabCount >= effectiveMultiSpaceCount {
+            sep = "\t"
+        } else if effectiveMultiSpaceCount >= 3 && effectiveMultiSpaceCount >= semiCount && effectiveMultiSpaceCount >= commaCount {
+            sep = "  " // placeholder, will use regex split below
+        } else if semiCount >= commaCount {
+            sep = ";"
+        } else {
+            sep = ","
+        }
+
+        // Fonction de découpe d'une ligne selon le séparateur
+        func splitLine(_ line: String) -> [String] {
+            if sep == "  " {
+                // Séparer par 2+ espaces consécutifs
+                let parts = line.components(separatedBy: "  ").flatMap { $0.components(separatedBy: "\t") }
+                return parts.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            } else {
+                return line.components(separatedBy: sep).map { $0.trimmingCharacters(in: .whitespaces) }
+            }
+        }
+
+        // Parser l'en-tête pour identifier les colonnes
+        let headersRaw = splitLine(lignes[0])
+        let headers = headersRaw.map { $0.lowercased() }
+
+        // Mapping flexible des noms de colonnes
+        let colClient = headers.firstIndex(where: { ["client", "nom complet", "nom_complet"].contains($0) })
+        let colPrenom = headers.firstIndex(where: { ["prénom", "prenom", "firstname"].contains($0) })
+        let colNom = headers.firstIndex(where: { $0 == "nom" || $0 == "lastname" || $0 == "name" })
+        let colTel = headers.firstIndex(where: { ["téléphone", "telephone", "tel", "tél", "phone", "mobile"].contains($0) })
+        var colVariante = headers.firstIndex(where: { ["variante", "produit", "product", "article", "variant"].contains($0) })
+        var colTaille = headers.firstIndex(where: { ["taille", "size", "pointure"].contains($0) })
+        let colCouleur = headers.firstIndex(where: { ["couleur", "color", "colour", "coloris"].contains($0) })
+        let colQuantite = headers.firstIndex(where: { ["quantité", "quantite", "qté", "qte", "qty", "quantity", "nb"].contains($0) })
+        let colCategorie = headers.firstIndex(where: { ["catégorie", "categorie", "category", "cat", "groupe", "group"].contains($0) })
+        var colPrix = headers.firstIndex(where: { h in
+            h.contains("prix") || h.contains("price") || h.contains("tarif") || h == "pu" || h == "p.u." || h == "pu ht" || h == "unit price"
+        })
+        let colTotal = headers.firstIndex(where: { h in
+            h.contains("total") || h.contains("montant") || h.contains("amount")
+        })
+
+        // Vérifier si la première ligne est un vrai en-tête ou déjà des données
+        let toutesColonnesReconnues = [colClient, colPrenom, colNom, colTel, colVariante, colTaille, colCouleur, colQuantite, colCategorie, colPrix, colTotal]
+        let aucunHeaderReconnu = toutesColonnesReconnues.allSatisfy { $0 == nil }
+
+        // Compter combien de colonnes utiles sont reconnues par header
+        let nbColsStructurees = [colClient, colPrenom, colNom, colTel, colTaille, colCouleur, colQuantite, colCategorie, colPrix, colTotal].compactMap({ $0 }).count
+
+        // ── Classificateur de contenu de cellule ──
+        // 0 = texte, 1 = prix, 2 = taille
+        func classifyCell(_ s: String) -> Int {
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: .punctuationCharacters).trimmingCharacters(in: .whitespacesAndNewlines)
+            let sansMon = t.replacingOccurrences(of: "€", with: "").replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+            if sansMon.range(of: #"^\d+[.,]\d{1,2}$"#, options: .regularExpression) != nil { return 1 }
+            if t.range(of: #"\d+[.,]?\d*\s*(l|cl|ml|kg|g|oz)"#, options: [.regularExpression, .caseInsensitive]) != nil { return 2 }
+            let low = t.lowercased()
+            if ["xxs","xs","s","m","l","xl","xxl","xxxl","2xl","3xl"].contains(low) { return 2 }
+            return 0
+        }
+
+        // ── MODE SANS EN-TÊTE : auto-détection de la structure ──
+        if aucunHeaderReconnu {
+            // Si on a un vrai séparateur (pas des espaces), essayer la détection structurée
+            if sep != "  " {
+                let allParts = lignes.map { splitLine($0) }
+                let maxCols = allParts.map(\.count).max() ?? 0
+
+                if maxCols >= 2 {
+                    // Classifier chaque cellule
+                    let allTypes = allParts.map { $0.map { classifyCell($0) } }
+
+                    // Vérifier si TRANSPOSÉ : chaque ligne a des cellules du même type
+                    let rowHomogeneous = allTypes.allSatisfy { row in
+                        guard let first = row.first else { return true }
+                        return row.allSatisfy { $0 == first }
+                    }
+                    let rowTypes = allTypes.compactMap(\.first)
+                    let hasTexte = rowTypes.contains(0)
+
+                    if rowHomogeneous && hasTexte && lignes.count >= 2 {
+                        // TRANSPOSÉ : lignes = attributs, colonnes = produits
+                        let numProducts = allParts.map(\.count).min() ?? 0
+                        var rowVariante: Int? = nil, rowTaille: Int? = nil, rowPrix: Int? = nil
+                        for (i, row) in allTypes.enumerated() {
+                            if let first = row.first {
+                                switch first {
+                                case 0: if rowVariante == nil { rowVariante = i }
+                                case 1: if rowPrix == nil { rowPrix = i }
+                                case 2: if rowTaille == nil { rowTaille = i }
+                                default: break
+                                }
+                            }
+                        }
+
+                        for col in 0..<numProducts {
+                            let nom = rowVariante != nil && col < allParts[rowVariante!].count
+                                ? allParts[rowVariante!][col].trimmingCharacters(in: .punctuationCharacters).trimmingCharacters(in: .whitespacesAndNewlines)
+                                : ""
+                            let taille = rowTaille != nil && col < allParts[rowTaille!].count
+                                ? allParts[rowTaille!][col].trimmingCharacters(in: .punctuationCharacters).trimmingCharacters(in: .whitespacesAndNewlines)
+                                : ""
+                            let prixRaw = rowPrix != nil && col < allParts[rowPrix!].count ? allParts[rowPrix!][col] : ""
+                            let prix = Double(prixRaw.replacingOccurrences(of: ",", with: ".").replacingOccurrences(of: "€", with: "").replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: .punctuationCharacters)) ?? 0
+
+                            guard !nom.isEmpty else { continue }
+
+                            if !variantes.contains(where: { $0.nom.localizedCaseInsensitiveCompare(nom) == .orderedSame }) {
+                                variantes.append(Variante(nom: nom, prix: taille.isEmpty ? prix : 0))
+                                result.variantesCrees += 1
+                            }
+                            if let idx = variantes.firstIndex(where: { $0.nom.localizedCaseInsensitiveCompare(nom) == .orderedSame }) {
+                                if !taille.isEmpty {
+                                    if !variantes[idx].tailles.contains(where: { $0.localizedCaseInsensitiveCompare(taille) == .orderedSame }) {
+                                        variantes[idx].tailles.append(taille)
+                                    }
+                                    if prix > 0 {
+                                        variantes[idx].prixTailles[taille] = prix
+                                        result.prixImportes += 1
+                                    }
+                                } else if prix > 0 && variantes[idx].prix == 0 {
+                                    variantes[idx].prix = prix
+                                    result.prixImportes += 1
+                                }
+                            }
+                        }
+
+                        if result.variantesCrees > 0 || result.prixImportes > 0 {
+                            save()
+                        }
+                        return result
+
+                    } else if !rowHomogeneous && maxCols >= 2 {
+                        // NORMAL sans en-tête : chaque ligne = un produit, colonnes = attributs
+                        // Auto-détecter les rôles des colonnes depuis la première ligne
+                        var autoColV: Int? = nil, autoColT: Int? = nil, autoColP: Int? = nil
+                        if let firstRow = allTypes.first {
+                            for (i, t) in firstRow.enumerated() {
+                                switch t {
+                                case 0: if autoColV == nil { autoColV = i }
+                                case 2: if autoColT == nil { autoColT = i }
+                                case 1: if autoColP == nil { autoColP = i }
+                                default: break
+                                }
+                            }
+                        }
+                        if autoColV != nil {
+                            return parseCampagneCSV(lignes: lignes, sep: sep, headers: [], colVariante: autoColV, colTaille: autoColT, colCouleur: nil, colPrix: autoColP, colTotal: nil, dataStartIndex: 0, lineSplitter: splitLine)
+                        }
+                    }
+                }
+            }
+
+            // Fallback : parsing sémantique (texte brut sans séparateur clair)
+            return parseLinesBySemantic(lignes: lignes)
+        }
+        if colVariante != nil && nbColsStructurees == 0 {
+            // On a juste "Variante" comme header → parser le reste sémantiquement
+            let dataLines = Array(lignes.dropFirst())
+            return parseLinesBySemantic(lignes: dataLines)
+        }
+
+        // Index de début des données : 1 (on a un header reconnu avec structure)
+        let dataStartIndex = 1
+
+        // Auto-détection taille/prix par contenu quand variante trouvée par header mais pas taille/prix
+        if colVariante != nil && colTaille == nil && colPrix == nil {
+            let sampleParts = splitLine(lignes.count > 1 ? lignes[1] : lignes[0])
+            let varCol = colVariante ?? 0
+            // Chercher prix : dernière colonne purement numérique
+            for idx in stride(from: sampleParts.count - 1, through: 0, by: -1) where idx != varCol {
+                let val = sampleParts[idx]
+                let sansMonnaie = val.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: "€", with: "")
+                if sansMonnaie.range(of: #"[a-zA-Z]"#, options: .regularExpression) == nil {
+                    let norm = val.replacingOccurrences(of: ",", with: ".").components(separatedBy: CharacterSet.decimalDigits.union(CharacterSet(charactersIn: ".")).inverted).joined()
+                    if let _ = Double(norm), !norm.isEmpty {
+                        colPrix = idx
+                        break
+                    }
+                }
+            }
+            // Chercher taille : colonne avec volume/unité pattern
+            for (idx, val) in sampleParts.enumerated() where idx != varCol && idx != colPrix {
+                let low = val.lowercased().trimmingCharacters(in: .punctuationCharacters)
+                if low.range(of: #"\d+[.,]?\d*\s*(l|cl|ml|kg|g|oz)"#, options: .regularExpression) != nil ||
+                   ["xs", "s", "m", "l", "xl", "xxl", "xxxl", "2xl", "3xl"].contains(low) ||
+                   low.range(of: #"^\d{2}$"#, options: .regularExpression) != nil {
+                    colTaille = idx
+                    break
+                }
+            }
+        }
+
+        // Dernier recours : si aucune colonne variante, col 0
+        if colVariante == nil && colClient == nil && colPrenom == nil && colNom == nil {
+            colVariante = 0
+        }
+
+        // Mode campagne seule (pas de colonne client) ou mode commandes (avec clients)
+        let aClient = colClient != nil || colPrenom != nil || colNom != nil
+
+        // Sans client mais avec variante → importer uniquement les variantes/tailles/prix
+        if !aClient {
+            guard colVariante != nil else {
+                result.erreurs.append("Colonnes requises manquantes : « Client » ou « Nom »/« Prénom », ou au minimum « Variante ». Colonnes détectées : \(headers.joined(separator: ", "))")
+                return result
+            }
+            return parseCampagneCSV(lignes: lignes, sep: sep, headers: headers, colVariante: colVariante, colTaille: colTaille, colCouleur: colCouleur, colPrix: colPrix, colTotal: colTotal, dataStartIndex: dataStartIndex, lineSplitter: splitLine)
+        }
+
+        // Regrouper les lignes par clé client (nom complet normalisé)
+        struct LigneImport {
+            var prenom: String
+            var nom: String
+            var telephone: String
+            var variante: String
+            var taille: String
+            var couleur: String
+            var quantite: Double
+            var categorie: String
+            var prix: Double?
+        }
+
+        var lignesImport: [LigneImport] = []
+
+        for i in dataStartIndex..<lignes.count {
+            let parts = splitLine(lignes[i])
+            guard parts.count >= 2 else { continue }
+
+            func val(_ index: Int?) -> String {
+                guard let idx = index, idx < parts.count else { return "" }
+                return parts[idx]
+            }
+
+            let importPrenom: String
+            let importNom: String
+
+            if let colC = colClient {
+                // Colonne "Client" ou "Nom complet" → séparer au premier espace
+                let full = val(colC)
+                let composants = full.split(separator: " ", maxSplits: 1).map(String.init)
+                importPrenom = composants.first ?? full
+                importNom = composants.count > 1 ? composants[1] : ""
+            } else {
+                importPrenom = val(colPrenom)
+                importNom = val(colNom)
+            }
+
+            let nomComplet = [importPrenom, importNom].filter { !$0.isEmpty }.joined(separator: " ")
+            guard !nomComplet.isEmpty else { continue }
+
+            // Quantité : accepter virgule comme séparateur décimal
+            let qteStr = val(colQuantite).replacingOccurrences(of: ",", with: ".")
+            let qte = Double(qteStr) ?? (colQuantite == nil ? 1 : 0)
+            guard qte > 0 else { continue }
+
+            // Prix : accepter virgule comme séparateur décimal, ignorer symboles monétaires
+            let prixVal: Double?
+            let prixRaw = val(colPrix)
+            let totalRaw = val(colTotal)
+            if !prixRaw.isEmpty {
+                let prixClean = prixRaw.replacingOccurrences(of: ",", with: ".").components(separatedBy: CharacterSet.decimalDigits.union(CharacterSet(charactersIn: ".")).inverted).joined()
+                prixVal = Double(prixClean)
+            } else if !totalRaw.isEmpty, qte > 0 {
+                // Pas de colonne prix mais colonne total : calculer le prix unitaire
+                let totalClean = totalRaw.replacingOccurrences(of: ",", with: ".").components(separatedBy: CharacterSet.decimalDigits.union(CharacterSet(charactersIn: ".")).inverted).joined()
+                if let totalNum = Double(totalClean) {
+                    prixVal = totalNum / qte
+                } else {
+                    prixVal = nil
+                }
+            } else {
+                prixVal = nil
+            }
+
+            lignesImport.append(LigneImport(
+                prenom: importPrenom,
+                nom: importNom,
+                telephone: val(colTel),
+                variante: val(colVariante),
+                taille: val(colTaille),
+                couleur: val(colCouleur),
+                quantite: qte,
+                categorie: val(colCategorie),
+                prix: prixVal
+            ))
+        }
+
+        guard !lignesImport.isEmpty else {
+            result.erreurs.append("Aucune ligne de commande valide trouvée.")
+            return result
+        }
+
+        // Créer les variantes manquantes et affecter les prix
+        for ligne in lignesImport where !ligne.variante.isEmpty {
+            if !variantes.contains(where: { $0.nom.localizedCaseInsensitiveCompare(ligne.variante) == .orderedSame }) {
+                variantes.append(Variante(nom: ligne.variante, prix: ligne.taille.isEmpty ? (ligne.prix ?? 0) : 0))
+                result.variantesCrees += 1
+            }
+            if let idx = variantes.firstIndex(where: { $0.nom.localizedCaseInsensitiveCompare(ligne.variante) == .orderedSame }) {
+                // Prix de base uniquement si pas de taille sur cette ligne
+                if let p = ligne.prix, p > 0, ligne.taille.isEmpty, variantes[idx].prix == 0 {
+                    variantes[idx].prix = p
+                }
+                // Ajouter taille si nouvelle
+                if !ligne.taille.isEmpty,
+                   !variantes[idx].tailles.contains(where: { $0.localizedCaseInsensitiveCompare(ligne.taille) == .orderedSame }) {
+                    variantes[idx].tailles.append(ligne.taille)
+                }
+                // Ajouter couleur si nouvelle
+                if !ligne.couleur.isEmpty,
+                   !variantes[idx].couleurs.contains(where: { $0.localizedCaseInsensitiveCompare(ligne.couleur) == .orderedSame }) {
+                    variantes[idx].couleurs.append(ligne.couleur)
+                }
+                // Toujours stocker le prix par taille quand une taille est présente
+                if let p = ligne.prix, p > 0, !ligne.taille.isEmpty {
+                    variantes[idx].prixTailles[ligne.taille] = p
+                    result.prixImportes += 1
+                } else if let p = ligne.prix, p > 0, ligne.taille.isEmpty {
+                    result.prixImportes += 1
+                }
+            }
+        }
+
+        // Regrouper par client (nom complet normalisé)
+        struct CleClient: Hashable {
+            let nomComplet: String
+        }
+
+        var clientsMap: [CleClient: [LigneImport]] = [:]
+        var clientOrder: [CleClient] = []
+        for ligne in lignesImport {
+            let cle = CleClient(nomComplet: [ligne.prenom, ligne.nom].filter { !$0.isEmpty }.joined(separator: " ").lowercased())
+            if clientsMap[cle] == nil {
+                clientOrder.append(cle)
+            }
+            clientsMap[cle, default: []].append(ligne)
+        }
+
+        // Créer ou compléter les commandes
+        for cle in clientOrder {
+            guard let lignesClient = clientsMap[cle] else { continue }
+            guard let premiere = lignesClient.first else { continue }
+
+            let nomComplet = [premiere.prenom, premiere.nom].filter { !$0.isEmpty }.joined(separator: " ")
+
+            // Chercher une commande existante pour ce client
+            let existingIndex = orders.firstIndex(where: { $0.nomComplet.localizedCaseInsensitiveCompare(nomComplet) == .orderedSame })
+
+            // Résoudre la catégorie
+            var catID: UUID? = nil
+            let catNom = premiere.categorie
+            if !catNom.isEmpty {
+                if let existing = categories.first(where: { $0.nom.localizedCaseInsensitiveCompare(catNom) == .orderedSame }) {
+                    catID = existing.id
+                } else {
+                    let nouvelle = CategorieClient(nom: catNom)
+                    categories.append(nouvelle)
+                    catID = nouvelle.id
+                }
+            }
+
+            // Construire les lignes de commande
+            var lignesCommande: [LigneCommande] = []
+            for l in lignesClient {
+                // Résoudre le nom exact de la variante (casse du référentiel)
+                let nomVariante = variantes.first(where: { $0.nom.localizedCaseInsensitiveCompare(l.variante) == .orderedSame })?.nom ?? l.variante
+                let taille = l.taille.isEmpty ? nil : l.taille
+                let couleur = l.couleur.isEmpty ? nil : l.couleur
+
+                lignesCommande.append(LigneCommande(
+                    variante: nomVariante,
+                    taille: taille,
+                    couleur: couleur,
+                    quantite: l.quantite
+                ))
+                result.lignesAjoutees += 1
+            }
+
+            if let idx = existingIndex {
+                // Ajouter les lignes à la commande existante
+                orders[idx].lignes.append(contentsOf: lignesCommande)
+                if orders[idx].telephone.isEmpty && !premiere.telephone.isEmpty {
+                    orders[idx].telephone = premiere.telephone
+                }
+                if catID != nil && orders[idx].categorieID == nil {
+                    orders[idx].categorieID = catID
+                }
+            } else {
+                // Nouvelle commande
+                var order = Order()
+                order.prenom = premiere.prenom
+                order.nom = premiere.nom
+                order.telephone = premiere.telephone
+                order.categorieID = catID
+                order.lignes = lignesCommande
+                orders.append(order)
+                result.commandesCreees += 1
+            }
+        }
+
+        if result.lignesAjoutees > 0 { save() }
+        return result
+    }
+
+    // MARK: - Import sémantique (sans en-tête)
+
+    /// Parse les lignes par extraction regex : prix = dernier nombre, taille = volume/unité, reste = variante.
+    /// Utilisé quand aucun en-tête CSV n'est reconnu (fichier texte brut avec espaces, tabs, etc.).
+    private func parseLinesBySemantic(lignes: [String]) -> ImportCommandesResult {
+        var result = ImportCommandesResult()
+
+        // Regex prix : nombre (avec virgule ou point décimal) suivi optionnellement de $, €, ou en fin de ligne
+        let prixRegex = try! NSRegularExpression(pattern: #"(\d+[.,]\d{1,2})\s*[$€]?\s*$"#)
+
+        // Regex taille/volume : nombre + unité
+        let tailleRegex = try! NSRegularExpression(pattern: #"(\d+[.,]?\d*)\s*(l|cl|ml|kg|g|oz)\.?"#, options: .caseInsensitive)
+
+        // Regex tailles textiles
+        let tailleTextileRegex = try! NSRegularExpression(pattern: #"\b(XXS|XS|XXL|XXXL|XL|S|M|L|2XL|3XL|\d{2})\b"#, options: .caseInsensitive)
+
+        struct LigneParsee {
+            var variante: String
+            var taille: String
+            var prix: Double?
+        }
+
+        var parsed: [LigneParsee] = []
+
+        for ligne in lignes {
+            var remaining = ligne.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !remaining.isEmpty else { continue }
+
+            // 1. Extraire le prix (dernier nombre de la ligne)
+            var prix: Double? = nil
+            let range = NSRange(remaining.startIndex..., in: remaining)
+            if let match = prixRegex.firstMatch(in: remaining, range: range),
+               let prixRange = Range(match.range(at: 1), in: remaining) {
+                let prixStr = String(remaining[prixRange]).replacingOccurrences(of: ",", with: ".")
+                prix = Double(prixStr)
+                let fullMatchRange = Range(match.range, in: remaining)!
+                remaining = String(remaining[remaining.startIndex..<fullMatchRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            guard !remaining.isEmpty else { continue }
+
+            // 2. Extraire la taille/volume
+            var taille = ""
+            let remRange = NSRange(remaining.startIndex..., in: remaining)
+            if let match = tailleRegex.firstMatch(in: remaining, range: remRange),
+               let tailleRange = Range(match.range, in: remaining) {
+                taille = String(remaining[tailleRange]).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+                remaining = remaining.replacingCharacters(in: tailleRange, with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: .punctuationCharacters)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if let match = tailleTextileRegex.firstMatch(in: remaining, range: remRange),
+                      let tailleRange = Range(match.range, in: remaining) {
+                let candidate = String(remaining[tailleRange])
+                if remaining.count > candidate.count + 2 {
+                    taille = candidate
+                    remaining = remaining.replacingCharacters(in: tailleRange, with: "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .trimmingCharacters(in: .punctuationCharacters)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+
+            // 3. Le reste = nom de la variante
+            let nomVariante = remaining.trimmingCharacters(in: .punctuationCharacters).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !nomVariante.isEmpty else { continue }
+
+            parsed.append(LigneParsee(variante: nomVariante, taille: taille, prix: prix))
+        }
+
+        // Créer/mettre à jour les variantes
+        for p in parsed {
+            if !variantes.contains(where: { $0.nom.localizedCaseInsensitiveCompare(p.variante) == .orderedSame }) {
+                variantes.append(Variante(nom: p.variante, prix: p.taille.isEmpty ? (p.prix ?? 0) : 0))
+                result.variantesCrees += 1
+            }
+
+            if let idx = variantes.firstIndex(where: { $0.nom.localizedCaseInsensitiveCompare(p.variante) == .orderedSame }) {
+                // Prix de base uniquement si pas de taille
+                if let pr = p.prix, pr > 0, p.taille.isEmpty, variantes[idx].prix == 0 {
+                    variantes[idx].prix = pr
+                }
+                // Taille
+                if !p.taille.isEmpty, !variantes[idx].tailles.contains(where: { $0.localizedCaseInsensitiveCompare(p.taille) == .orderedSame }) {
+                    variantes[idx].tailles.append(p.taille)
+                }
+                // Prix par taille
+                if let pr = p.prix, pr > 0, !p.taille.isEmpty {
+                    variantes[idx].prixTailles[p.taille] = pr
+                    result.prixImportes += 1
+                } else if let pr = p.prix, pr > 0, p.taille.isEmpty {
+                    result.prixImportes += 1
+                }
+            }
+        }
+
+        guard result.variantesCrees > 0 || result.prixImportes > 0 else {
+            result.erreurs.append("Aucune variante trouvée dans le fichier.")
+            return result
+        }
+
+        save()
+        return result
+    }
+
+    /// Import CSV campagne seule (variantes/tailles/couleurs/prix, sans clients).
+    private func parseCampagneCSV(lignes: [String], sep: String, headers: [String], colVariante: Int?, colTaille: Int?, colCouleur: Int?, colPrix: Int?, colTotal: Int?, dataStartIndex: Int = 1, lineSplitter: ((String) -> [String])? = nil) -> ImportCommandesResult {
+        var result = ImportCommandesResult()
+
+        let splitFn: (String) -> [String] = lineSplitter ?? { line in
+            line.components(separatedBy: sep).map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+
+        for i in dataStartIndex..<lignes.count {
+            let parts = splitFn(lignes[i])
+            guard parts.count >= 1 else { continue }
+
+            func val(_ index: Int?) -> String {
+                guard let idx = index, idx < parts.count else { return "" }
+                return parts[idx]
+            }
+
+            let nomVariante = val(colVariante)
+            guard !nomVariante.isEmpty else { continue }
+
+            let taille = val(colTaille)
+            let couleur = val(colCouleur)
+
+            // Prix
+            let prixVal: Double?
+            let prixRaw = val(colPrix)
+            let totalRaw = val(colTotal)
+            if !prixRaw.isEmpty {
+                let prixClean = prixRaw.replacingOccurrences(of: ",", with: ".").components(separatedBy: CharacterSet.decimalDigits.union(CharacterSet(charactersIn: ".")).inverted).joined()
+                prixVal = Double(prixClean)
+            } else if !totalRaw.isEmpty {
+                let totalClean = totalRaw.replacingOccurrences(of: ",", with: ".").components(separatedBy: CharacterSet.decimalDigits.union(CharacterSet(charactersIn: ".")).inverted).joined()
+                prixVal = Double(totalClean)
+            } else {
+                prixVal = nil
+            }
+
+            // Créer ou mettre à jour la variante
+            if !variantes.contains(where: { $0.nom.localizedCaseInsensitiveCompare(nomVariante) == .orderedSame }) {
+                variantes.append(Variante(nom: nomVariante, prix: taille.isEmpty ? (prixVal ?? 0) : 0))
+                result.variantesCrees += 1
+            }
+
+            if let idx = variantes.firstIndex(where: { $0.nom.localizedCaseInsensitiveCompare(nomVariante) == .orderedSame }) {
+                // Prix de base uniquement si pas de taille
+                if let p = prixVal, p > 0, taille.isEmpty, variantes[idx].prix == 0 {
+                    variantes[idx].prix = p
+                }
+                // Taille
+                if !taille.isEmpty, !variantes[idx].tailles.contains(where: { $0.localizedCaseInsensitiveCompare(taille) == .orderedSame }) {
+                    variantes[idx].tailles.append(taille)
+                }
+                // Couleur
+                if !couleur.isEmpty, !variantes[idx].couleurs.contains(where: { $0.localizedCaseInsensitiveCompare(couleur) == .orderedSame }) {
+                    variantes[idx].couleurs.append(couleur)
+                }
+                // Prix par taille
+                if let p = prixVal, p > 0, !taille.isEmpty {
+                    variantes[idx].prixTailles[taille] = p
+                    result.prixImportes += 1
+                } else if let p = prixVal, p > 0, taille.isEmpty {
+                    result.prixImportes += 1
+                }
+            }
+        }
+
+        guard result.variantesCrees > 0 || result.prixImportes > 0 else {
+            result.erreurs.append("Aucune variante trouvée dans le fichier.")
+            return result
+        }
+
+        save()
+        return result
+    }
+
+    // MARK: - Import IA (produits structurés)
+
+    /// Crée/met à jour les variantes à partir de la liste de produits extraits par l'IA.
+    /// Route directement vers les variantes, sans passer par le parser CSV (qui cherche des commandes clients).
+    func appliquerProduitsIA(_ produits: [ProduitIA]) -> ImportCommandesResult {
+        var result = ImportCommandesResult()
+
+        for p in produits {
+            let nom = p.nom.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !nom.isEmpty else { continue }
+
+            let taille = p.taille.trimmingCharacters(in: .whitespacesAndNewlines)
+            let couleur = p.couleur.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Créer la variante si elle n'existe pas
+            if !variantes.contains(where: { $0.nom.localizedCaseInsensitiveCompare(nom) == .orderedSame }) {
+                variantes.append(Variante(nom: nom, prix: taille.isEmpty ? p.prix : 0))
+                result.variantesCrees += 1
+            }
+
+            // Mettre à jour taille, couleur et prix
+            if let idx = variantes.firstIndex(where: { $0.nom.localizedCaseInsensitiveCompare(nom) == .orderedSame }) {
+                // Ajouter la couleur (= contenant : Bouteille, Bidon, Bag in Box…)
+                if !couleur.isEmpty {
+                    if !variantes[idx].couleurs.contains(where: { $0.localizedCaseInsensitiveCompare(couleur) == .orderedSame }) {
+                        variantes[idx].couleurs.append(couleur)
+                    }
+                }
+
+                if taille.isEmpty {
+                    // Prix de base (sans taille)
+                    if p.prix > 0 && variantes[idx].prix == 0 {
+                        variantes[idx].prix = p.prix
+                        result.prixImportes += 1
+                    }
+                } else {
+                    // Ajouter la taille (= volume : 25cl, 50cl, 100cl…)
+                    if !variantes[idx].tailles.contains(where: { $0.localizedCaseInsensitiveCompare(taille) == .orderedSame }) {
+                        variantes[idx].tailles.append(taille)
+                    }
+                    // Prix par taille
+                    if p.prix > 0 {
+                        variantes[idx].prixTailles[taille] = p.prix
+                        result.prixImportes += 1
+                    }
+                }
+            }
+        }
+
+        if result.variantesCrees > 0 || result.prixImportes > 0 {
+            save()
+        }
+        return result
+    }
+
+    // MARK: - Import commandes depuis image/PDF (OCR)
+
+    /// Importe des commandes depuis une image (photo ou capture) via reconnaissance de texte (OCR).
+    /// Le traitement est effectué en arrière-plan ; le résultat est renvoyé sur le main thread.
+    func importerCommandesDepuisImage(_ image: UIImage, completion: @escaping (ImportCommandesResult) -> Void) {
+        guard let cgImage = image.cgImage else {
+            completion(ImportCommandesResult(erreurs: ["Image invalide."]))
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let observations = self.ocrCGImage(cgImage)
+            let csvText = self.reconstructTableFromOCR(observations)
+            if csvText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                DispatchQueue.main.async {
+                    completion(ImportCommandesResult(erreurs: ["Aucun texte reconnu dans l'image."]))
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                // Si IA configurée → priorité IA
+                if AITriageService.shared.estConfigure {
+                    AITriageService.shared.trierTexte(csvText) { produits in
+                        let diag = AITriageService.shared.dernierDiagnostic
+                        if let produits = produits {
+                            var resultIA = self.appliquerProduitsIA(produits)
+                            resultIA.diagnosticIA = diag
+                            if resultIA.variantesCrees > 0 || resultIA.prixImportes > 0 {
+                                completion(resultIA)
+                                return
+                            }
+                        }
+                        // Fallback : parsing classique
+                        var result = self.parseCommandesCSV(csvText)
+                        result.diagnosticIA = "Fallback classique. IA: \(diag)"
+                        completion(result)
+                    }
+                } else {
+                    let result = self.parseCommandesCSV(csvText)
+                    completion(result)
+                }
+            }
+        }
+    }
+
+    /// Importe des commandes depuis un fichier PDF ou image. Tente d'abord l'extraction de texte directe,
+    /// puis recourt à l'OCR si nécessaire.
+    func importerCommandesDepuisPDFOuImage(url: URL, completion: @escaping (ImportCommandesResult) -> Void) {
+        // Vérifier si c'est une image
+        if let image = UIImage(contentsOfFile: url.path) {
+            importerCommandesDepuisImage(image, completion: completion)
+            return
+        }
+
+        // Tenter d'ouvrir comme PDF
+        guard let document = PDFDocument(url: url) else {
+            completion(ImportCommandesResult(erreurs: ["Impossible d'ouvrir le fichier comme PDF ou image."]))
+            return
+        }
+
+        // Si IA configurée → toujours utiliser l'OCR (préserve la structure en colonnes)
+        // car page.string perd la structure tabulaire des PDFs complexes
+        if AITriageService.shared.estConfigure {
+            importerPDFParOCR(document: document, completion: completion)
+            return
+        }
+
+        // Sans IA : tenter d'abord l'extraction de texte directe (PDF non scanné)
+        var fullText = ""
+        for i in 0..<document.pageCount {
+            if let page = document.page(at: i), let text = page.string {
+                fullText += text + "\n"
+            }
+        }
+        if !fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let result = parseCommandesCSV(fullText)
+            if result.lignesAjoutees > 0 || result.variantesCrees > 0 {
+                DispatchQueue.main.async { completion(result) }
+                return
+            }
+        }
+
+        // Fallback : OCR sur chaque page rendue en image
+        importerPDFParOCR(document: document, completion: completion)
+    }
+
+    /// Importe un PDF via OCR page par page, puis tente le triage IA si disponible.
+    private func importerPDFParOCR(document: PDFDocument, completion: @escaping (ImportCommandesResult) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            var allCSVLines: [String] = []
+            var headerLine: String? = nil
+
+            for i in 0..<document.pageCount {
+                guard let page = document.page(at: i) else { continue }
+                let pageRect = page.bounds(for: .mediaBox)
+                let scale: CGFloat = 2.0
+                let size = CGSize(width: pageRect.width * scale, height: pageRect.height * scale)
+
+                let renderer = UIGraphicsImageRenderer(size: size)
+                let image = renderer.image { ctx in
+                    UIColor.white.setFill()
+                    ctx.fill(CGRect(origin: .zero, size: size))
+                    ctx.cgContext.translateBy(x: 0, y: size.height)
+                    ctx.cgContext.scaleBy(x: scale, y: -scale)
+                    page.draw(with: .mediaBox, to: ctx.cgContext)
+                }
+
+                guard let cgImage = image.cgImage else { continue }
+                let observations = self.ocrCGImage(cgImage)
+                let pageCSV = self.reconstructTableFromOCR(observations)
+                let pageLines = pageCSV.components(separatedBy: "\n").filter { !$0.isEmpty }
+
+                // Sur les pages suivantes, ignorer l'en-tête s'il est répété
+                if i == 0 {
+                    allCSVLines.append(contentsOf: pageLines)
+                    headerLine = pageLines.first?.lowercased()
+                } else {
+                    for line in pageLines {
+                        if let h = headerLine, line.lowercased() == h { continue }
+                        allCSVLines.append(line)
+                    }
+                }
+            }
+
+            let csvText = allCSVLines.joined(separator: "\n")
+            if csvText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                DispatchQueue.main.async {
+                    completion(ImportCommandesResult(erreurs: ["Aucun texte reconnu dans le PDF."]))
+                }
+                return
+            }
+
+            DispatchQueue.main.async {
+                // Si IA configurée → priorité IA
+                if AITriageService.shared.estConfigure {
+                    AITriageService.shared.trierTexte(csvText) { produits in
+                        let diag = AITriageService.shared.dernierDiagnostic
+                        if let produits = produits {
+                            var resultIA = self.appliquerProduitsIA(produits)
+                            resultIA.diagnosticIA = diag
+                            if resultIA.variantesCrees > 0 || resultIA.prixImportes > 0 {
+                                completion(resultIA)
+                                return
+                            }
+                        }
+                        // IA n'a rien donné → fallback parsing classique
+                        var result = self.parseCommandesCSV(csvText)
+                        result.diagnosticIA = "Fallback classique. IA: \(diag)"
+                        if result.lignesAjoutees > 0 || result.variantesCrees > 0 {
+                            completion(result)
+                        } else {
+                            completion(ImportCommandesResult(erreurs: ["Le PDF est trop complexe. Aucun produit reconnu."], diagnosticIA: "Echec total. IA: \(diag)"))
+                        }
+                    }
+                } else {
+                    let result = self.parseCommandesCSV(csvText)
+                    completion(result)
+                }
+            }
+        }
+    }
+
+    /// Effectue la reconnaissance de texte sur une image Core Graphics (synchrone, appeler depuis un thread d'arrière-plan).
+    private func ocrCGImage(_ cgImage: CGImage) -> [VNRecognizedTextObservation] {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.recognitionLanguages = ["fr-FR", "en-US"]
+        request.usesLanguageCorrection = true
+
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        try? handler.perform([request])
+        return request.results ?? []
+    }
+
+    /// Reconstruit un texte CSV à partir des observations OCR en analysant les positions spatiales.
+    private func reconstructTableFromOCR(_ observations: [VNRecognizedTextObservation]) -> String {
+        guard !observations.isEmpty else { return "" }
+
+        struct TextBlock {
+            let text: String
+            let midX: CGFloat
+            let midY: CGFloat  // 0 = top, 1 = bottom (inversé par rapport à Vision)
+            let height: CGFloat
+        }
+
+        var blocks: [TextBlock] = []
+        for obs in observations {
+            guard let candidate = obs.topCandidates(1).first else { continue }
+            let box = obs.boundingBox
+            blocks.append(TextBlock(
+                text: candidate.string,
+                midX: box.midX,
+                midY: 1 - box.midY,
+                height: box.height
+            ))
+        }
+
+        guard !blocks.isEmpty else { return "" }
+
+        // Si la plupart des blocs contiennent déjà des séparateurs, ce sont des lignes complètes
+        let separatorCount = blocks.filter { $0.text.contains(";") || $0.text.contains("\t") }.count
+        if separatorCount > blocks.count / 2 {
+            let sorted = blocks.sorted { $0.midY < $1.midY }
+            return sorted.map { $0.text.replacingOccurrences(of: "\t", with: ";") }.joined(separator: "\n")
+        }
+
+        // Regrouper par ligne (proximité en Y)
+        let sortedByY = blocks.sorted { $0.midY < $1.midY }
+        let heights = blocks.map(\.height).sorted()
+        let medianHeight = heights[heights.count / 2]
+        let threshold = medianHeight * 0.6
+
+        var rows: [[TextBlock]] = []
+        var currentRow: [TextBlock] = []
+        var currentRowY: CGFloat = -1
+
+        for block in sortedByY {
+            if currentRowY < 0 || abs(block.midY - currentRowY) <= threshold {
+                currentRow.append(block)
+                currentRowY = currentRow.map(\.midY).reduce(0, +) / CGFloat(currentRow.count)
+            } else {
+                rows.append(currentRow.sorted { $0.midX < $1.midX })
+                currentRow = [block]
+                currentRowY = block.midY
+            }
+        }
+        if !currentRow.isEmpty {
+            rows.append(currentRow.sorted { $0.midX < $1.midX })
+        }
+
+        // Convertir en CSV (colonnes séparées par ;)
+        return rows.map { row in
+            row.map(\.text).joined(separator: ";")
+        }.joined(separator: "\n")
     }
 
     /// Importe une commande depuis les données encodées dans un deep link. Retourne le nom du client importé, ou nil en cas d'échec.

@@ -168,7 +168,7 @@ struct PlusCommandeView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(Color.ocean.opacity(0.1))
-                    .foregroundStyle(.ocean)
+                    .foregroundStyle(.oceanText)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
@@ -268,7 +268,7 @@ struct PlusCommandeView: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.ocean.opacity(0.1))
-                .foregroundStyle(.ocean)
+                .foregroundStyle(.oceanText)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .disabled(store.variantes.isEmpty)
@@ -371,7 +371,7 @@ struct ClientSelectionView: View {
                             Image(systemName: selectedIDs.count == clients.count ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(selectedIDs.count == clients.count ? .ocean : .secondary)
                             Text(selectedIDs.count == clients.count ? "Tout désélectionner" : "Tout sélectionner")
-                                .foregroundStyle(.ocean)
+                                .foregroundStyle(.oceanText)
                                 .fontWeight(.medium)
                         }
                     }

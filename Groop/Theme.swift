@@ -17,6 +17,15 @@ extension Color {
     static let seafoam = Color(red: 0.30, green: 0.78, blue: 0.69)
     static let deepSea = Color(red: 0.02, green: 0.15, blue: 0.30)
     static let shell = Color(red: 1.0, green: 0.95, blue: 0.88)
+
+    /// Bleu ocean en mode clair, blanc en mode sombre — pour le texte des boutons.
+    static let oceanText = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? .white : UIColor(red: 0.05, green: 0.30, blue: 0.50, alpha: 1)
+    })
+    /// Vert très foncé en mode clair, blanc en mode sombre — pour le texte des boutons.
+    static let seafoamText = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? .white : UIColor(red: 0.05, green: 0.35, blue: 0.25, alpha: 1)
+    })
 }
 
 extension ShapeStyle where Self == Color {
@@ -27,6 +36,8 @@ extension ShapeStyle where Self == Color {
     static var seafoam: Color { Color.seafoam }
     static var deepSea: Color { Color.deepSea }
     static var shell: Color { Color.shell }
+    static var oceanText: Color { Color.oceanText }
+    static var seafoamText: Color { Color.seafoamText }
 }
 
 // MARK: - Gradients

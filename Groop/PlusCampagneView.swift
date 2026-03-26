@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import PhotosUI
 
 struct PlusCampagneView: View {
     @ObservedObject var store: OrderStore
@@ -16,16 +17,27 @@ struct PlusCampagneView: View {
     @State private var showSauvegardeNom = false
     @State private var nomSauvegarde = ""
     @State private var showChargerCampagne = false
-    @State private var showImportJSON = false
     @State private var showSauvegardeFeedback = false
     @State private var showNouvelleCampagneRappel = false
     @State private var showNouvelleCampagneOptions = false
     @State private var showCampagneSetup = false
+    @State private var campagneCSVShareItem: IdentifiableURL? = nil
+    @State private var showFileImporter = false
+    @State private var fileImportJSON = false
+    @State private var importCommandesResult: OrderStore.ImportCommandesResult? = nil
+    @State private var showImportCommandesFeedback = false
+    @State private var showImportImageSource = false
+    @State private var showCamera = false
+    @State private var showPhotosPicker = false
+    @State private var isProcessingOCR = false
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var capturedImage: UIImage? = nil
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
                 configSection
+                importCampagnesSection
                 nouvelleCampagneSection
                 sauvegardeSection
             }
@@ -34,6 +46,9 @@ struct PlusCampagneView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Campagne")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $campagneCSVShareItem) { item in
+            ShareSheet(activityItems: [item.url])
+        }
         .sheet(isPresented: $showCampagneSetup) {
             CampagneSetupView(store: store)
         }
@@ -60,19 +75,73 @@ struct PlusCampagneView: View {
         } message: {
             Text("La campagne « \(nomSauvegarde) » a été sauvegardée.")
         }
-        .fileImporter(isPresented: $showImportJSON, allowedContentTypes: [.json]) { result in
+        .fileImporter(isPresented: $showFileImporter, allowedContentTypes: fileImporterAllowedTypes) { result in
             switch result {
             case .success(let url):
                 let accessing = url.startAccessingSecurityScopedResource()
                 defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-                if store.chargerCampagne(depuis: url) {
-                    showSauvegardeFeedback = true
-                    nomSauvegarde = store.titreCampagne
+                if fileImportJSON {
+                    if store.chargerCampagne(depuis: url) {
+                        showSauvegardeFeedback = true
+                        nomSauvegarde = store.titreCampagne
+                    }
+                } else {
+                    let ext = url.pathExtension.lowercased()
+                    if ["csv", "txt", "tsv"].contains(ext) {
+                        importCommandesResult = store.importerCommandesDepuisFichier(url: url)
+                        showImportCommandesFeedback = true
+                    } else {
+                        isProcessingOCR = true
+                        store.importerCommandesDepuisPDFOuImage(url: url) { res in
+                            isProcessingOCR = false
+                            importCommandesResult = res
+                            showImportCommandesFeedback = true
+                        }
+                    }
                 }
             case .failure:
                 break
             }
         }
+        .alert(importCommandesFeedbackTitle, isPresented: $showImportCommandesFeedback) {
+            Button("OK") {}
+        } message: {
+            Text(importCommandesFeedbackMessage)
+        }
+        .confirmationDialog("Importer depuis…", isPresented: $showImportImageSource, titleVisibility: .visible) {
+            Button("Appareil photo") {
+                showCamera = true
+            }
+            Button("Bibliothèque photo") {
+                showPhotosPicker = true
+            }
+            Button("Annuler", role: .cancel) {}
+        }
+        .photosPicker(isPresented: $showPhotosPicker, selection: $selectedPhotoItem, matching: .images)
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraImagePicker(image: $capturedImage)
+                .ignoresSafeArea()
+        }
+        .onChange(of: capturedImage) {
+            guard let img = capturedImage else { return }
+            capturedImage = nil
+            processOCRImage(img)
+        }
+        .onChange(of: selectedPhotoItem) {
+            guard let item = selectedPhotoItem else { return }
+            selectedPhotoItem = nil
+            isProcessingOCR = true
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let img = UIImage(data: data) {
+                    processOCRImage(img)
+                } else {
+                    isProcessingOCR = false
+                }
+            }
+        }
+
+
         .alert("Nouvelle campagne", isPresented: $showNouvelleCampagneRappel) {
             Button("Sauvegarder et continuer") {
                 _ = store.sauvegarderCampagne(nom: store.titreCampagne)
@@ -98,6 +167,139 @@ struct PlusCampagneView: View {
         } message: {
             Text("Voulez-vous conserver la liste des clients (noms et téléphones) pour la nouvelle campagne ?")
         }
+    }
+
+    // MARK: - Helpers
+
+    private var fileImporterAllowedTypes: [UTType] {
+        if fileImportJSON {
+            return [.json]
+        }
+        return [.plainText, .commaSeparatedText, UTType(filenameExtension: "csv") ?? .commaSeparatedText, .pdf, .png, .jpeg, .image]
+    }
+
+    private var importCommandesFeedbackTitle: String {
+        guard let r = importCommandesResult else { return "Import" }
+        if !r.erreurs.isEmpty && r.lignesAjoutees == 0 && r.variantesCrees == 0 && r.prixImportes == 0 { return "Erreur d'import" }
+        if r.variantesCrees > 0 || r.prixImportes > 0 {
+            return "Campagne importée ✓"
+        }
+        return "\(r.lignesAjoutees) ligne\(r.lignesAjoutees > 1 ? "s" : "") importée\(r.lignesAjoutees > 1 ? "s" : "") ✓"
+    }
+
+    private var importCommandesFeedbackMessage: String {
+        guard let r = importCommandesResult else { return "" }
+        var parts: [String] = []
+        if r.commandesCreees > 0 { parts.append("\(r.commandesCreees) nouvelle\(r.commandesCreees > 1 ? "s" : "") commande\(r.commandesCreees > 1 ? "s" : "")") }
+        if r.lignesAjoutees > 0 { parts.append("\(r.lignesAjoutees) ligne\(r.lignesAjoutees > 1 ? "s" : "") de commande") }
+        if r.variantesCrees > 0 { parts.append("\(r.variantesCrees) variante\(r.variantesCrees > 1 ? "s" : "") créée\(r.variantesCrees > 1 ? "s" : "")") }
+        if r.prixImportes > 0 { parts.append("\(r.prixImportes) prix importé\(r.prixImportes > 1 ? "s" : "")") }
+        if !r.erreurs.isEmpty { parts.append(r.erreurs.joined(separator: "\n")) }
+        if !r.diagnosticIA.isEmpty { parts.append("[IA] \(r.diagnosticIA)") }
+        return parts.isEmpty ? "Aucune donnée importée" : parts.joined(separator: "\n")
+    }
+
+    private func processOCRImage(_ image: UIImage) {
+        isProcessingOCR = true
+        store.importerCommandesDepuisImage(image) { result in
+            isProcessingOCR = false
+            importCommandesResult = result
+            showImportCommandesFeedback = true
+        }
+    }
+
+    // MARK: - Importer des campagnes
+
+    private var importCampagnesSection: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "doc.badge.arrow.up")
+                    .foregroundStyle(.seafoam)
+                Text("Importer des campagnes")
+                    .font(.headline)
+                    .foregroundStyle(.seafoam)
+                Spacer()
+                if !storeManager.proUnlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            Text("Importez des commandes depuis un fichier CSV, un PDF ou une photo. Les colonnes sont détectées automatiquement (Client, Variante, Taille, Couleur, Quantité…).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Fichier (CSV, PDF, image)
+            Button {
+                fileImportJSON = false
+                showFileImporter = true
+            } label: {
+                HStack {
+                    Image(systemName: "doc.badge.arrow.up")
+                    Text("Fichier (CSV, PDF, image…)")
+                        .fontWeight(.medium)
+                    Spacer()
+                    if isProcessingOCR {
+                        ProgressView()
+                            .tint(.seafoam)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.seafoam.opacity(0.15))
+                .foregroundStyle(.seafoamText)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .disabled(isProcessingOCR)
+
+            // Photo / Appareil photo
+            Button {
+                showImportImageSource = true
+            } label: {
+                HStack {
+                    Image(systemName: "camera.fill")
+                    Text("Photo / Appareil photo")
+                        .fontWeight(.medium)
+                    Spacer()
+                    if isProcessingOCR {
+                        ProgressView()
+                            .tint(.seafoam)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.seafoam.opacity(0.15))
+                .foregroundStyle(.seafoamText)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .disabled(isProcessingOCR)
+
+            if isProcessingOCR {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text(AITriageService.shared.estConfigure
+                         ? "Analyse intelligente en cours…"
+                         : "Reconnaissance du texte en cours…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .disabled(!storeManager.proUnlocked)
+        .opacity(storeManager.proUnlocked ? 1 : 0.5)
     }
 
     // MARK: - Configuration
@@ -126,10 +328,31 @@ struct PlusCampagneView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color(.systemGray6))
-                .foregroundStyle(.primary)
+                .background(LinearGradient.oceanGradient)
+                .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
+
+            Button {
+                if let url = store.exporterCampagneCSV() {
+                    campagneCSVShareItem = IdentifiableURL(url: url)
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "tablecells")
+                    Text("Exporter la campagne (CSV)")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(LinearGradient.oceanGradient)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .disabled(store.variantes.isEmpty)
         }
         .padding()
         .background(.ultraThinMaterial)
@@ -225,8 +448,8 @@ struct PlusCampagneView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.ocean.opacity(0.1))
-                .foregroundStyle(.ocean)
+                .background(LinearGradient.oceanGradient)
+                .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
 
@@ -242,22 +465,23 @@ struct PlusCampagneView: View {
                         Spacer()
                         Text("\(store.campagnesSauvegardees.count)")
                             .font(.caption)
-                            .foregroundStyle(.ocean)
+                            .foregroundStyle(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
-                            .background(Color.ocean.opacity(0.15))
+                            .background(Color.white.opacity(0.25))
                             .clipShape(Capsule())
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color(.systemGray6))
-                .foregroundStyle(.primary)
+                .background(LinearGradient.oceanGradient)
+                .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
 
             Button {
-                showImportJSON = true
+                fileImportJSON = true
+                showFileImporter = true
             } label: {
                 HStack {
                     Image(systemName: "doc.badge.plus")
@@ -266,8 +490,8 @@ struct PlusCampagneView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color(.systemGray6))
-                .foregroundStyle(.primary)
+                .background(LinearGradient.oceanGradient)
+                .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
@@ -376,6 +600,38 @@ struct CampagneListView: View {
             } message: {
                 Text("La sauvegarde « \(confirmSupprimer ?? "") » sera définitivement supprimée.")
             }
+        }
+    }
+}
+
+// MARK: - Appareil photo
+
+struct CameraImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraImagePicker
+        init(_ parent: CameraImagePicker) { self.parent = parent }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            parent.image = info[.originalImage] as? UIImage
+            parent.dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
         }
     }
 }

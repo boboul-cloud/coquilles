@@ -13,14 +13,12 @@ struct PlusReglageView: View {
     @ObservedObject var storeManager: StoreManager
 
     @State private var showConfirmReset = false
-    @State private var showImportClients = false
-    @State private var importClientsCount = 0
-    @State private var showImportClientsFeedback = false
-    @State private var exportClientsShareItem: IdentifiableURL? = nil
-    @State private var showExportFormat = false
-    @State private var showExportCategoryPicker = false
-    @State private var pendingExportSeparer = false
     @State private var showModeEmploi = false
+    @State private var showSauvegardeFeedback = false
+    @State private var restaureMessage = ""
+    @State private var showRestaureFeedback = false
+    @State private var showConfirmRestaure: BackupInfo? = nil
+    @State private var cleAPIOpenAI: String = AITriageService.shared.cleAPI
 
     private let confidentialiteURL = URL(string: "https://boboul-cloud.github.io/groop/confidentialite.html")!
     private let conditionsURL = URL(string: "https://boboul-cloud.github.io/groop/conditions.html")!
@@ -38,6 +36,8 @@ struct PlusReglageView: View {
             VStack(spacing: 20) {
                 modeEmploiSection
                 reglagesSection
+                iaSection
+                backupsSection
                 confidentialiteSection
                 versionSection
             }
@@ -54,75 +54,36 @@ struct PlusReglageView: View {
         } message: {
             Text("Toutes les commandes seront effacées. Les noms et téléphones des clients seront conservés.")
         }
-        .fileImporter(isPresented: $showImportClients, allowedContentTypes: [.plainText, .commaSeparatedText]) { result in
-            switch result {
-            case .success(let url):
-                let accessing = url.startAccessingSecurityScopedResource()
-                defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-                importClientsCount = store.importerClientsDepuisFichier(url: url)
-                if importClientsCount > 0 {
-                    showImportClientsFeedback = true
-                }
-            case .failure:
-                break
-            }
-        }
-        .alert("\(importClientsCount) client\(importClientsCount > 1 ? "s" : "") importé\(importClientsCount > 1 ? "s" : "") ✓", isPresented: $showImportClientsFeedback) {
+        .alert("Sauvegarde effectuée ✓", isPresented: $showSauvegardeFeedback) {
             Button("OK") {}
+        } message: {
+            Text(restaureMessage)
         }
-        .sheet(item: $exportClientsShareItem) { item in
-            ShareSheet(activityItems: [item.url])
-        }
-        .confirmationDialog("Format d'export", isPresented: $showExportFormat, titleVisibility: .visible) {
-            Button("Nom ; Téléphone ; Catégorie") {
-                pendingExportSeparer = false
-                if store.categories.count > 1 {
-                    showExportCategoryPicker = true
-                } else {
-                    if let url = store.exporterClientsFichier(separerNomPrenom: false) {
-                        exportClientsShareItem = IdentifiableURL(url: url)
-                    }
-                }
-            }
-            Button("Prénom ; Nom ; Téléphone (Temps de Jeu)") {
-                pendingExportSeparer = true
-                if store.categories.count > 1 {
-                    showExportCategoryPicker = true
-                } else {
-                    let catID = store.categories.first?.id
-                    if let url = store.exporterClientsFichier(separerNomPrenom: true, categorieID: catID) {
-                        exportClientsShareItem = IdentifiableURL(url: url)
+        .alert("Restaurer cette sauvegarde ?", isPresented: Binding(
+            get: { showConfirmRestaure != nil },
+            set: { if !$0 { showConfirmRestaure = nil } }
+        )) {
+            Button("Restaurer", role: .destructive) {
+                if let info = showConfirmRestaure {
+                    let count = store.restaurerBackup(info: info)
+                    if count > 0 {
+                        restaureMessage = "\(count) campagne\(count > 1 ? "s" : "") restaurée\(count > 1 ? "s" : "") depuis la sauvegarde du \(info.dateFormatee)."
+                        showRestaureFeedback = true
                     }
                 }
             }
             Button("Annuler", role: .cancel) {}
         } message: {
-            Text("Choisissez le format selon l'application de destination.")
+            if let info = showConfirmRestaure {
+                Text("La campagne active et toutes les sauvegardes seront remplacées par celles du \(info.dateFormatee).")
+            }
         }
-        .confirmationDialog("Quelle catégorie exporter ?", isPresented: $showExportCategoryPicker, titleVisibility: .visible) {
-            Button("Toutes les catégories") {
-                if pendingExportSeparer {
-                    // Export par catégorie séparé : utiliser la première catégorie pour la démo ou tout exporter
-                    if let url = store.exporterClientsFichier(separerNomPrenom: true) {
-                        exportClientsShareItem = IdentifiableURL(url: url)
-                    }
-                } else {
-                    if let url = store.exporterClientsFichier(separerNomPrenom: false) {
-                        exportClientsShareItem = IdentifiableURL(url: url)
-                    }
-                }
-            }
-            ForEach(store.categories) { cat in
-                Button(cat.nom) {
-                    if let url = store.exporterClientsFichier(separerNomPrenom: pendingExportSeparer, categorieID: cat.id) {
-                        exportClientsShareItem = IdentifiableURL(url: url)
-                    }
-                }
-            }
-            Button("Annuler", role: .cancel) {}
+        .alert("Restauration effectuée ✓", isPresented: $showRestaureFeedback) {
+            Button("OK") {}
         } message: {
-            Text("Choisissez la catégorie à exporter ou exportez tout.")
+            Text(restaureMessage)
         }
+
     }
 
     // MARK: - Réglages
@@ -152,7 +113,7 @@ struct PlusReglageView: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.ocean.opacity(0.1))
-                .foregroundStyle(.ocean)
+                .foregroundStyle(.oceanText)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
@@ -175,6 +136,28 @@ struct PlusReglageView: View {
             }
 
             Button {
+                if store.sauvegarderToutesCampagnes() != nil {
+                    let dateStr = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .short)
+                    restaureMessage = "Sauvegarde créée le \(dateStr)."
+                    showSauvegardeFeedback = true
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "square.and.arrow.down")
+                    Text("Sauvegarder l'état des campagnes")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.ocean.opacity(0.1))
+                .foregroundStyle(.oceanText)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            Button {
                 showConfirmReset = true
             } label: {
                 HStack {
@@ -192,66 +175,127 @@ struct PlusReglageView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
 
-            Button {
-                showImportClients = true
-            } label: {
-                HStack {
-                    Image(systemName: "person.crop.circle.badge.plus")
-                    Text("Importer une liste de clients")
-                        .fontWeight(.medium)
-                    Spacer()
-                    if !storeManager.proUnlocked {
-                        Image(systemName: "lock.fill")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.ocean.opacity(0.1))
-                .foregroundStyle(.ocean)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            .disabled(!storeManager.proUnlocked)
-            .opacity(storeManager.proUnlocked ? 1 : 0.5)
 
-            Button {
-                showExportFormat = true
-            } label: {
-                HStack {
-                    Image(systemName: "person.crop.circle.badge.arrow.right")
-                    Text("Exporter la liste de clients")
-                        .fontWeight(.medium)
-                    Spacer()
-                    if !storeManager.proUnlocked {
-                        Image(systemName: "lock.fill")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    } else {
-                        Text("\(store.orders.filter { !$0.nomComplet.isEmpty }.count)")
-                            .font(.caption)
-                            .foregroundStyle(.ocean)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.ocean.opacity(0.15))
-                            .clipShape(Capsule())
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.ocean.opacity(0.1))
-                .foregroundStyle(.ocean)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            .disabled(!storeManager.proUnlocked || store.orders.isEmpty)
-            .opacity(storeManager.proUnlocked ? 1 : 0.5)
         }
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    // MARK: - Intelligence Artificielle
+
+    private var iaSection: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "brain")
+                    .foregroundStyle(.ocean)
+                Text("Import intelligent (IA)")
+                    .font(.headline)
+                    .foregroundStyle(.ocean)
+                Spacer()
+                if AITriageService.shared.estConfigure {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.caption)
+                }
+            }
+
+            Text("Pour les PDFs complexes (catalogues, tarifs pro…), l'IA reconnaît automatiquement les produits et ignore les titres, TVA, en-têtes, etc. Nécessite une clé API OpenAI.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(spacing: 8) {
+                SecureField("Clé API OpenAI (sk-…)", text: $cleAPIOpenAI)
+                    .textContentType(.password)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .padding(12)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .onChange(of: cleAPIOpenAI) {
+                        AITriageService.shared.cleAPI = cleAPIOpenAI
+                    }
+
+                if cleAPIOpenAI.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "info.circle")
+                            .font(.caption2)
+                        Text("Obtenez une clé sur platform.openai.com")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                        Text("IA activée — les PDFs complexes seront analysés automatiquement")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    // MARK: - Sauvegardes
+
+    private var backupsSection: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundStyle(.ocean)
+                Text("Sauvegardes")
+                    .font(.headline)
+                    .foregroundStyle(.ocean)
+                Spacer()
+            }
+
+            if store.backups.isEmpty {
+                Text("Aucune sauvegarde")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ForEach(store.backups) { backup in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(backup.dateFormatee)
+                                .fontWeight(.medium)
+                                .font(.subheadline)
+                        }
+                        Spacer()
+                        Button {
+                            showConfirmRestaure = backup
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.ocean)
+                        }
+                        Button {
+                            store.supprimerBackup(info: backup)
+                        } label: {
+                            Image(systemName: "trash.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.coral)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .onAppear { store.rafraichirListeBackups() }
     }
 
     // MARK: - Confidentialité et conditions
