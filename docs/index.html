@@ -392,16 +392,13 @@ input:focus{outline:none;border-color:var(--ocean)}
     var lignes = [];
     state.forEach(function(s){
       if(s.quantite > 0){
-        var l = {v:s.nom, q:s.quantite};
-        if(s.taille) l.t = s.taille;
-        if(s.couleur) l.c = s.couleur;
-        lignes.push(l);
+        lignes.push({i:s.varIdx, q:s.quantite, t:s.taille||'', c:s.couleur||''});
       }
     });
 
-    // Format compact : "c" + base64url(nom|tel|var;qty;taille;couleur,...)
+    // Format compact avec index : "c" + base64url(nom|tel|idx;qty;taille;couleur,...)
     var compactLines = lignes.map(function(l){
-      return (l.v||'') + ';' + l.q + ';' + (l.t||'') + ';' + (l.c||'');
+      return l.i + ';' + l.q + ';' + l.t + ';' + l.c;
     }).join(',');
     var compactData = nom + '|' + tel + '|' + compactLines;
     var compactB64 = btoa(unescape(encodeURIComponent(compactData)))
@@ -426,11 +423,10 @@ input:focus{outline:none;border-color:var(--ocean)}
       return v.x;
     }
     lignes.forEach(function(l){
-      VARIANTES.forEach(function(v){
-        if(v.n===l.v){
-          total += prixPourVariante(v, l.t||null, l.c||null) * l.q;
-        }
-      });
+      var v = VARIANTES[l.i];
+      if(v){
+        total += prixPourVariante(v, l.t||null, l.c||null) * l.q;
+      }
     });
 
     if (TEL_VENDEUR) {
@@ -442,15 +438,14 @@ input:focus{outline:none;border-color:var(--ocean)}
       successHtml += '<p style="margin-bottom:16px">Votre commande va s\'ouvrir dans l\'app Messages. Envoyez le SMS pour confirmer.</p>';
       successHtml += '<div class="recap" style="text-align:left;margin-bottom:16px">';
       lignes.forEach(function(l){
-        var d = l.v;
+        var v = VARIANTES[l.i];
+        var d = v ? v.n : '?';
         if(l.t) d += " — " + l.t;
         if(l.c) d += " — " + l.c;
         var lPrix = 0;
-        VARIANTES.forEach(function(v){
-          if(v.n===l.v){
-            lPrix = prixPourVariante(v, l.t||null, l.c||null);
-          }
-        });
+        if(v){
+          lPrix = prixPourVariante(v, l.t||null, l.c||null);
+        }
         successHtml += '<div class="recap-line"><span>'+esc(d)+' &times; '+fmtQte(l.q)+'</span><span>'+( lPrix*l.q).toFixed(2)+' &euro;</span></div>';
       });
       successHtml += '<div class="recap-line total-line"><span>Total</span><span>'+total.toFixed(2)+' &euro;</span></div>';
