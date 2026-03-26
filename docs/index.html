@@ -31,10 +31,12 @@ input:focus{outline:none;border-color:var(--ocean)}
 .qty-btn.plus{background:var(--seafoam);color:#fff}
 .qty-btn:disabled{opacity:.3}
 .qty-val{font-size:1.1em;font-weight:600;min-width:50px;text-align:center}
-.size-line{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f0f0f0}
+.size-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:10px 0;border-bottom:1px solid #f0f0f0}
 .size-line:last-child{border-bottom:none}
-.size-name{font-weight:500;min-width:60px;font-size:.95em}
-.size-price{font-size:.8em;color:var(--ocean);min-width:55px}
+.size-top{display:flex;align-items:center;gap:8px;width:100%}
+.size-name{font-weight:500;min-width:50px;font-size:.95em}
+.size-price{font-size:.8em;color:var(--ocean)}
+.size-bottom{display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end}
 .submit-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--ocean),#2a9d8f);color:#fff;border:none;border-radius:14px;font-size:1.05em;font-weight:600;cursor:pointer;transition:transform .1s}
 .submit-btn:active{transform:scale(.97)}
 .submit-btn:disabled{opacity:.4}
@@ -248,36 +250,36 @@ input:focus{outline:none;border-color:var(--ocean)}
           var si = stateIndexFor(i, t);
           var prix = (v.tp[t] !== undefined) ? v.tp[t] : v.x;
           html += '<div class="size-line">';
+          html += '<div class="size-top">';
           html += '<span class="size-name">'+esc(t)+'</span>';
           if (v.tp[t] !== undefined) {
             html += '<span class="size-price">'+prix.toFixed(2)+'&euro;</span>';
-          } else {
-            html += '<span class="size-price"></span>';
           }
+          html += '<div class="qty-row" style="margin:0;margin-left:auto">';
+          html += '<button class="qty-btn minus" style="width:30px;height:30px;font-size:1em" onclick="chgQty('+si+',-1)">&minus;</button>';
+          html += '<span class="qty-val" id="qty_'+si+'" style="min-width:36px;font-size:.95em">0</span>';
+          html += '<button class="qty-btn plus" style="width:30px;height:30px;font-size:1em" onclick="chgQty('+si+',1)">+</button>';
+          html += '</div></div>';
           if (v.co && v.co.length) {
             var aXp = v.xp && Object.keys(v.xp).length > 0;
-            html += '<select id="color_'+si+'" onchange="selColorLine('+si+')" style="font-size:.8em;border-radius:8px;border:1px solid #ddd;padding:4px;max-width:100px">';
-            html += '<option value="">Couleur</option>';
+            html += '<div class="size-bottom">';
+            html += '<select id="color_'+si+'" onchange="selColorLine('+si+')" style="font-size:.8em;border-radius:8px;border:1px solid #ddd;padding:4px 8px;flex:1">';
+            html += '<option value="">Contenant</option>';
             v.co.forEach(function(cl){
               if (aXp) {
-                // Ne montrer que les combinaisons valides (existantes et prix > 0)
                 var comboKey = t+'+'+cl;
                 if (v.xp[comboKey] === undefined || v.xp[comboKey] <= 0) return;
-                var lbl = cl + ' ('+v.xp[comboKey].toFixed(2)+'€)';
+                var lbl = cl + ' ('+v.xp[comboKey].toFixed(2)+' €)';
                 html += '<option value="'+esc(cl)+'">'+esc(lbl)+'</option>';
               } else {
                 var lbl = cl;
-                if (v.cp && v.cp[cl] !== undefined) lbl += ' ('+v.cp[cl].toFixed(2)+'€)';
+                if (v.cp && v.cp[cl] !== undefined) lbl += ' ('+v.cp[cl].toFixed(2)+' €)';
                 html += '<option value="'+esc(cl)+'">'+esc(lbl)+'</option>';
               }
             });
-            html += '</select>';
+            html += '</select></div>';
           }
-          html += '<div class="qty-row" style="margin:0;flex:1;justify-content:flex-end">';
-          html += '<button class="qty-btn minus" style="width:30px;height:30px;font-size:1em" onclick="chgQty('+si+',-1)">&minus;</button>';
-          html += '<span class="qty-val" id="qty_'+si+'" style="min-width:40px;font-size:.95em">0</span>';
-          html += '<button class="qty-btn plus" style="width:30px;height:30px;font-size:1em" onclick="chgQty('+si+',1)">+</button>';
-          html += '</div></div>';
+          html += '</div>';
         });
       } else {
         // Pas de tailles : couleur + quantité simple
